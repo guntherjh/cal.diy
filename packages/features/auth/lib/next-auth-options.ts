@@ -31,6 +31,7 @@ import logger from "@calcom/lib/logger";
 import { randomString } from "@calcom/lib/random";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { hashEmail } from "@calcom/lib/server/PiiHasher";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import slugify from "@calcom/lib/slugify";
 import type { TrackingData } from "@calcom/lib/tracking";
 import prisma from "@calcom/prisma";
@@ -1185,6 +1186,21 @@ export const getOptions = ({
       // this is a workaround – in the future once we move to use the Account model in the DB
       // we should use NextAuth's isNewUser flag instead: https://next-auth.js.org/configuration/events#signin
       const isNewUser = new Date(user.createdDate) > new Date(Date.now() - 10 * 60 * 1000);
+
+      // Impersonation sessions are admin actions, not real sign-ins by the visitor.
+      const signedInUserId = Number(user.id);
+      if (!user.impersonatedBy && Number.isInteger(signedInUserId)) {
+        pendoTrack({
+          event: "Signed in",
+          userId: signedInUserId,
+          organizationId: user.profile?.organizationId,
+          properties: {
+            auth_provider: message.account?.provider ?? "unknown",
+            is_new_user: isNewUser,
+          },
+        });
+      }
+
       if ((isENVDev || IS_CALCOM) && isNewUser) {
         if (process.env.DUB_API_KEY) {
           const clickId = getDubId();

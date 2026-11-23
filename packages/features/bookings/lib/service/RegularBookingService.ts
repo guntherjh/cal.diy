@@ -66,6 +66,7 @@ import { criticalLogger } from "@calcom/lib/logger.server";
 import { getPiiFreeCalendarEvent, getPiiFreeEventType } from "@calcom/lib/piiFreeData";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
 import type { PrismaClient } from "@calcom/prisma";
@@ -2230,6 +2231,41 @@ async function handler(
     isRecurringBooking: !!input.bookingData.allRecurringDates,
     tracingLogger,
   });
+
+  // Recurring bookings run this handler once per occurrence, so only the first slot is tracked.
+  const isPendoTrackableBooking =
+    !isDryRun && (!input.bookingData.allRecurringDates || !!input.bookingData.isFirstRecurringSlot);
+  if (isPendoTrackableBooking) {
+    const pendoBookingProperties = {
+      booking_id: booking.id,
+      event_type_id: eventTypeId,
+      booking_status: booking.status,
+      is_team_event: isTeamEventType,
+      scheduling_type: eventType.schedulingType ?? "INDIVIDUAL",
+      is_recurring: !!input.bookingData.allRecurringDates,
+      requires_confirmation: !isConfirmedByDefault,
+      requires_payment: bookingRequiresPayment,
+    };
+    if (originalRescheduledBooking) {
+      pendoTrack({
+        event: "Booking rescheduled",
+        userId: organizerUser.id,
+        organizationId: organizerOrganizationId ?? null,
+        properties: {
+          ...pendoBookingProperties,
+          original_booking_id: originalRescheduledBooking.id,
+          rescheduled_by_booker: !!bookerEmail && reqBody.rescheduledBy === bookerEmail,
+        },
+      });
+    } else {
+      pendoTrack({
+        event: "Booking created",
+        userId: organizerUser.id,
+        organizationId: organizerOrganizationId ?? null,
+        properties: pendoBookingProperties,
+      });
+    }
+  }
 
   const webhookLocation = metadata?.videoCallUrl || evt.location;
 

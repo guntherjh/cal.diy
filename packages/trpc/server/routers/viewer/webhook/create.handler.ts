@@ -1,15 +1,12 @@
-import { v4 } from "uuid";
-
 import { updateTriggerForExistingBookings } from "@calcom/features/webhooks/lib/scheduleTrigger";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { validateUrlForSSRFSync } from "@calcom/lib/ssrfProtection";
 import { prisma } from "@calcom/prisma";
-import type { Webhook } from "@calcom/prisma/client";
-import type { Prisma } from "@calcom/prisma/client";
+import type { Prisma, Webhook } from "@calcom/prisma/client";
 import { EventTypeMetaDataSchema } from "@calcom/prisma/zod-utils";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
-
 import { TRPCError } from "@trpc/server";
-
+import { v4 } from "uuid";
 import type { TCreateInputSchema } from "./create.schema";
 
 type CreateOptions = {
@@ -77,6 +74,26 @@ export const createHandler = async ({ ctx, input }: CreateOptions) => {
   }
 
   await updateTriggerForExistingBookings(newWebhook, [], newWebhook.eventTriggers);
+
+  let webhookScope = "user";
+  if (input.platform) {
+    webhookScope = "platform";
+  } else if (input.eventTypeId) {
+    webhookScope = "event_type";
+  }
+
+  pendoTrack({
+    event: "Webhook created",
+    userId: user.id,
+    organizationId: user.organizationId,
+    properties: {
+      webhook_scope: webhookScope,
+      event_triggers: newWebhook.eventTriggers,
+      trigger_count: newWebhook.eventTriggers.length,
+      is_active: newWebhook.active,
+      has_custom_payload: !!newWebhook.payloadTemplate,
+    },
+  });
 
   return newWebhook;
 };
