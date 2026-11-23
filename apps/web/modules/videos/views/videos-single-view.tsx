@@ -508,7 +508,7 @@ export function LogInOverlay(props: LogInOverlayProps) {
           )}
 
           <p className="text-center text-sm text-subtle">
-            <a
+            <a data-novus-id="video-meeting-sign-in-to-join-a-meeting"
               href={`${WEBAPP_URL}/auth/login?callbackUrl=${WEBAPP_URL}/video/${bookingUid}`}
               className="text-emphasis underline">
               {t("sign_in")}
