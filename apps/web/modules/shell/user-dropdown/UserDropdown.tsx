@@ -27,6 +27,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import type { MouseEvent } from "react";
 import { useEffect, useState } from "react";
+import { clearPendoSession } from "~/pendo/lib/pendo";
 
 declare global {
   interface Window {
@@ -190,6 +191,7 @@ export function UserDropdown({ small }: UserDropdownProps) {
           <MenuItem
             variant="destructive"
             onClick={() => {
+              clearPendoSession();
               signOut({ callbackUrl: "/auth/logout" });
             }}>
             <LogOutIcon />

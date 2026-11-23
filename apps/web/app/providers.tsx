@@ -10,6 +10,8 @@ import { NotificationSoundHandler } from "@calcom/web/components/notification-so
 
 import useIsBookingPage from "@lib/hooks/useIsBookingPage";
 
+import { PendoTracker } from "~/pendo/components/PendoTracker";
+
 import { GeoProvider } from "./GeoContext";
 
 type ProvidersProps = {
@@ -25,6 +27,7 @@ export function Providers({ isEmbed, children, country }: ProvidersProps) {
     <GeoProvider country={country}>
       <SessionProvider>
         <TrpcProvider>
+          <PendoTracker />
           <ToastProvider position="bottom-center">
             {!isEmbed && !isBookingPage && <NotificationSoundHandler />}
             {/* @ts-expect-error react-inlinesvg/provider is incompatible with @types/react@18.0.26. Remove when these types are compatible. */}

@@ -8,6 +8,7 @@ import localFont from "next/font/local";
 import { cookies, headers } from "next/headers";
 import Script from "next/script";
 import type React from "react";
+import { PENDO_INSTALL_SNIPPET } from "~/pendo/lib/snippet";
 
 import "../styles/globals.css";
 import { AppRouterI18nProvider } from "./AppRouterI18nProvider";
@@ -120,6 +121,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             --font-cal: ${calFont.style.fontFamily.replace(/\'/g, "")};
           }
         `}</style>
+        <script
+          id="pendo-install"
+          nonce={nonce}
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: The Pendo install snippet must run inline before the app boots
+          dangerouslySetInnerHTML={{ __html: PENDO_INSTALL_SNIPPET }}
+        />
         {process.env.NODE_ENV === "development" && (
           <Script
             src="//unpkg.com/react-grab/dist/index.global.js"
@@ -151,13 +158,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <IconSprites />
         <SpeculationRules
           // URLs In Navigation
-          prerenderPathsOnHover={[
-            "/event-types",
-            "/availability",
-            "/bookings/upcoming",
-            "/teams",
-            "/apps",
-          ]}
+          prerenderPathsOnHover={["/event-types", "/availability", "/bookings/upcoming", "/teams", "/apps"]}
         />
 
         <Providers isEmbed={isEmbed} nonce={nonce} country={country}>
