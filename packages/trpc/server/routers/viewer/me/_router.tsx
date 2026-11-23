@@ -26,6 +26,10 @@ export const meRouter = router({
     const handler = (await import("./myStats.handler")).myStatsHandler;
     return handler({ ctx });
   }),
+  pendoMetadata: authedProcedure.query(async ({ ctx }) => {
+    const handler = (await import("./pendoMetadata.handler")).pendoMetadataHandler;
+    return handler({ ctx });
+  }),
   platformMe: authedProcedure.query(async ({ ctx }) => {
     const handler = (await import("./platformMe.handler")).platformMeHandler;
     return handler({ ctx });

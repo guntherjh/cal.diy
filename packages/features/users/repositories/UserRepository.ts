@@ -1216,6 +1216,90 @@ export class UserRepository {
     return withSelectedCalendars(user);
   }
 
+  async findForAnalyticsIdentity({
+    userId,
+    organizationId,
+  }: {
+    userId: number;
+    organizationId: number | null;
+  }) {
+    const user = await this.prismaClient.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        id: true,
+        uuid: true,
+        email: true,
+        name: true,
+        username: true,
+        role: true,
+        createdDate: true,
+        lastActiveAt: true,
+        trialEndsAt: true,
+        emailVerified: true,
+        completedOnboarding: true,
+        identityProvider: true,
+        twoFactorEnabled: true,
+        timeZone: true,
+        locale: true,
+        weekStart: true,
+        timeFormat: true,
+        appTheme: true,
+        verified: true,
+        locked: true,
+        isPlatformManaged: true,
+        creationSource: true,
+        hideBranding: true,
+      },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    if (!organizationId) {
+      return { user, organization: null };
+    }
+
+    const organization = await this.prismaClient.team.findUnique({
+      where: {
+        id: organizationId,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        createdAt: true,
+        isOrganization: true,
+        isPlatform: true,
+        isPrivate: true,
+        pendingPayment: true,
+        timeZone: true,
+        metadata: true,
+        organizationBilling: {
+          select: {
+            planName: true,
+            status: true,
+            billingPeriod: true,
+            paidSeats: true,
+            subscriptionStart: true,
+            subscriptionTrialEnd: true,
+            subscriptionEnd: true,
+          },
+        },
+        organizationSettings: {
+          select: {
+            isOrganizationVerified: true,
+            isAdminAPIEnabled: true,
+          },
+        },
+      },
+    });
+
+    return { user, organization };
+  }
+
   async getUserStats({ userId }: { userId: number }) {
     const user = await this.prismaClient.user.findUnique({
       where: {
@@ -1419,7 +1503,7 @@ export class UserRepository {
     });
   }
 
-  async deleteMany({ userIds }: {userIds: number[]}){
+  async deleteMany({ userIds }: { userIds: number[] }) {
     await this.prismaClient.user.deleteMany({
       where: {
         id: { in: userIds },
@@ -1488,15 +1572,15 @@ export class UserRepository {
     });
   }
 
-  async findByEmailWithInvitedTo({ email }: { email: string } ) {
+  async findByEmailWithInvitedTo({ email }: { email: string }) {
     return this.prismaClient.user.findUnique({
       where: {
-        email: email.toLowerCase()
+        email: email.toLowerCase(),
       },
       select: {
-        invitedTo: true
-      }
-    })
+        invitedTo: true,
+      },
+    });
   }
 
   async findByUsernameAndOrganizationId({
@@ -1504,20 +1588,20 @@ export class UserRepository {
     organizationId,
     excludeEmail,
   }: {
-    username: string,
-    organizationId: number | null,
-    excludeEmail: string
+    username: string;
+    organizationId: number | null;
+    excludeEmail: string;
   }) {
     return this.prismaClient.user.findFirst({
       where: {
         username,
         organizationId,
-        NOT: { email: excludeEmail }
+        NOT: { email: excludeEmail },
       },
       select: {
-        id: true
-      }
-    })
+        id: true,
+      },
+    });
   }
 
   async lockByEmail({ email }: { email: string }) {
@@ -1602,26 +1686,26 @@ export class UserRepository {
     const trimmedSearchTerm = searchTerm?.trim();
     const searchFilters: Prisma.UserWhereInput = trimmedSearchTerm
       ? {
-        AND: [
-          // To bypass the excludeLockedUsersExtension
-          bothLockedAndUnlockedWhere,
-          {
-            OR: [
-              { email: { contains: trimmedSearchTerm, mode: "insensitive" } },
-              { username: { contains: trimmedSearchTerm, mode: "insensitive" } },
-              {
-                profiles: {
-                  some: {
-                    username: { contains: trimmedSearchTerm, mode: "insensitive" },
+          AND: [
+            // To bypass the excludeLockedUsersExtension
+            bothLockedAndUnlockedWhere,
+            {
+              OR: [
+                { email: { contains: trimmedSearchTerm, mode: "insensitive" } },
+                { username: { contains: trimmedSearchTerm, mode: "insensitive" } },
+                {
+                  profiles: {
+                    some: {
+                      username: { contains: trimmedSearchTerm, mode: "insensitive" },
+                    },
                   },
                 },
-              },
-            ],
-          },
-        ],
-      }
-      // To bypass the excludeLockedUsersExtension
-      : bothLockedAndUnlockedWhere;
+              ],
+            },
+          ],
+        }
+      : // To bypass the excludeLockedUsersExtension
+        bothLockedAndUnlockedWhere;
 
     const hasLimit = limit !== undefined && limit !== null;
     const take = hasLimit ? limit + 1 : undefined; // +1 lets us detect "has more" for the cursor
