@@ -97,6 +97,7 @@ function VerifyEmailPage() {
                   <Button
                     color="minimal"
                     onClick={() => {
+                      window.pendo?.clearSession?.();
                       signOut({ callbackUrl: "/signup" });
                     }}>
                     {t("use_different_email")}

@@ -11,8 +11,54 @@ import type React from "react";
 
 import "../styles/globals.css";
 import { AppRouterI18nProvider } from "./AppRouterI18nProvider";
+import { PendoIdentify } from "./PendoIdentify";
 import { Providers } from "./providers";
 import { SpeculationRules } from "./SpeculationRules";
+
+// The location transforms keep credentials that this app carries in URLs (invite and email-change
+// tokens, app setup OAuth codes, password reset ids) out of what the Pendo agent records. They only
+// change the recorded URL, never the browser URL. A throwing transform makes the agent fall back to
+// the raw URL, so both callbacks guard their inputs.
+const pendoSnippet = `
+(function(apiKey){
+    (function(p,e,n,d,o){var v,w,x,y,z;o=p[d]=p[d]||{};o._q=o._q||[];
+    v=['initialize','identify','updateOptions','pageLoad','track', 'trackAgent'];for(w=0,x=v.length;w<x;++w)(function(m){
+    o[m]=o[m]||function(){o._q[m===v[0]?'unshift':'push']([m].concat([].slice.call(arguments,0)));};})(v[w]);
+    y=e.createElement(n);y.async=!0;y.src='https://cdn.pendo-security.pendo-dev.com/agent/static/'+apiKey+'/pendo.js';
+    z=e.getElementsByTagName(n)[0];z.parentNode.insertBefore(y,z);})(window,document,'script','pendo');
+})('2408189d-0e0b-4145-8257-a3cdc4be112a');
+
+pendo.initialize({
+  visitor: { id: '' },
+  location: {
+    transforms: [
+      {
+        attr: 'search',
+        action: 'ExcludeKeys',
+        data: function (search, url) {
+          var keys = ['token'];
+          try {
+            var pathname = (url && url.pathname) || '';
+            if (/^\\/apps\\/[^/]+\\/setup/.test(pathname)) keys.push('code');
+            var callbackUrl = new URLSearchParams(String(search || '')).get('callbackUrl') || '';
+            if (callbackUrl.indexOf('token=') !== -1) keys.push('callbackUrl');
+          } catch (e) {
+            keys.push('code', 'callbackUrl');
+          }
+          return keys;
+        }
+      },
+      {
+        attr: 'pathname',
+        action: 'Replace',
+        data: function (pathname) {
+          return String(pathname || '').replace(/^(\\/auth\\/forgot-password\\/)[^/]+/, '$1redacted');
+        }
+      }
+    ]
+  }
+});
+`;
 
 const interFont = Inter({ subsets: ["latin"], variable: "--font-sans", preload: true, display: "swap" });
 const calFont = localFont({
@@ -114,6 +160,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
       data-nextjs-router="app">
       <head nonce={nonce}>
+        <script
+          id="pendo-snippet"
+          nonce={nonce}
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: The Pendo install snippet must run inline before the app renders
+          dangerouslySetInnerHTML={{ __html: pendoSnippet }}
+        />
         <style>{`
           :root {
             --font-sans: ${interFont.style.fontFamily.replace(/\'/g, "")}, system-ui;
@@ -161,6 +213,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
 
         <Providers isEmbed={isEmbed} nonce={nonce} country={country}>
+          <PendoIdentify />
           <AppRouterI18nProvider translations={translations} locale={locale} ns={ns}>
             {children}
           </AppRouterI18nProvider>

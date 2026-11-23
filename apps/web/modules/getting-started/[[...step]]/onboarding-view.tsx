@@ -219,6 +219,7 @@ const OnboardingPage = (props: PageProps) => {
                   step: currentStep,
                   step_index: currentStepIndex,
                 });
+                window.pendo?.clearSession?.();
                 signOut({ callbackUrl: "/auth/logout" });
               }}
               className="mt-8 cursor-pointer px-4 py-2 font-sans text-sm font-medium">

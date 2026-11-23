@@ -17,6 +17,7 @@ export const OnboardingLayout = ({ userEmail, currentStep, children }: Onboardin
   const { t } = useLocale();
 
   const handleSignOut = () => {
+    window.pendo?.clearSession?.();
     signOut({ callbackUrl: "/auth/logout" });
   };
 

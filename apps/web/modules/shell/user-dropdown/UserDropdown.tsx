@@ -190,6 +190,7 @@ export function UserDropdown({ small }: UserDropdownProps) {
           <MenuItem
             variant="destructive"
             onClick={() => {
+              window.pendo?.clearSession?.();
               signOut({ callbackUrl: "/auth/logout" });
             }}>
             <LogOutIcon />
