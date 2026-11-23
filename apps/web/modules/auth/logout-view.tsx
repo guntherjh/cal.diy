@@ -11,6 +11,7 @@ import { Button } from "@calcom/ui/components/button";
 import { CheckIcon } from "@coss/ui/icons";
 
 import AuthContainer from "@components/ui/AuthContainer";
+import { clearPendoSession } from "@lib/pendo/pendo";
 
 export type PageProps = {
   query: ParsedUrlQuery;
@@ -21,6 +22,9 @@ export function Logout(props: PageProps) {
   const { status } = useSession();
   if (status === "authenticated") signOut({ redirect: false });
   const router = useRouter();
+  useEffect(() => {
+    clearPendoSession();
+  }, []);
   useEffect(() => {
     if (props.query?.survey === "true") {
       router.push(`${WEBSITE_URL}/cancellation`);

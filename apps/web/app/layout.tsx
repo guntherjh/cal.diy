@@ -2,6 +2,7 @@ import { getLocale } from "@calcom/features/auth/lib/getLocale";
 import { loadTranslations } from "@calcom/i18n/server";
 import { IconSprites } from "@calcom/ui/components/icon";
 import { buildLegacyRequest } from "@lib/buildLegacyCtx";
+import { PENDO_SNIPPET } from "@lib/pendo/pendo";
 import { dir } from "i18next";
 import { Inter } from "next/font/google";
 import localFont from "next/font/local";
@@ -120,6 +121,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             --font-cal: ${calFont.style.fontFamily.replace(/\'/g, "")};
           }
         `}</style>
+        <script
+          id="pendo-snippet"
+          nonce={nonce}
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: Pendo install snippet must run inline before the app renders
+          dangerouslySetInnerHTML={{ __html: PENDO_SNIPPET }}
+        />
         {process.env.NODE_ENV === "development" && (
           <Script
             src="//unpkg.com/react-grab/dist/index.global.js"
@@ -151,13 +158,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <IconSprites />
         <SpeculationRules
           // URLs In Navigation
-          prerenderPathsOnHover={[
-            "/event-types",
-            "/availability",
-            "/bookings/upcoming",
-            "/teams",
-            "/apps",
-          ]}
+          prerenderPathsOnHover={["/event-types", "/availability", "/bookings/upcoming", "/teams", "/apps"]}
         />
 
         <Providers isEmbed={isEmbed} nonce={nonce} country={country}>

@@ -14,6 +14,8 @@ import { Button } from "@calcom/ui/components/button";
 import { EmptyScreen } from "@calcom/ui/components/empty-screen";
 import { showToast } from "@calcom/ui/components/toast";
 
+import { clearPendoSession } from "@lib/pendo/pendo";
+
 const EMAIL_CLIENTS = [
   {
     name: "Gmail",
@@ -97,6 +99,7 @@ function VerifyEmailPage() {
                   <Button
                     color="minimal"
                     onClick={() => {
+                      clearPendoSession();
                       signOut({ callbackUrl: "/signup" });
                     }}>
                     {t("use_different_email")}
