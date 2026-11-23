@@ -5,6 +5,7 @@ import type { TGetTranscriptAccessLink } from "@calcom/app-store/dailyvideo/zod"
 import { getHumanReadableLocationValue } from "@calcom/app-store/locations";
 import type { WebhookSubscriber, PaymentData } from "@calcom/features/webhooks/lib/dto/types";
 import { getUTCOffsetByTimezone } from "@calcom/lib/dayjs";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import type { CalendarEvent, Person } from "@calcom/types/Calendar";
 
 // Minimal webhook shape for sending payloads (subset of WebhookSubscriber)
@@ -103,10 +104,7 @@ export type EventPayloadType = Omit<CalendarEvent, "assignmentReason"> &
       | null;
   };
 
-export type WebhookPayloadType =
-  | EventPayloadType
-  | OOOEntryPayloadType
-  | BookingNoShowUpdatedPayload;
+export type WebhookPayloadType = EventPayloadType | OOOEntryPayloadType | BookingNoShowUpdatedPayload;
 
 type WebhookDataType = WebhookPayloadType & { triggerEvent: string; createdAt: string };
 
@@ -238,10 +236,7 @@ const sendPayload = async (
   }
 
   if (body === undefined) {
-    if (
-      template &&
-      (isOOOEntryPayload(data) || isEventPayload(data) || isNoShowPayload(data))
-    ) {
+    if (template && (isOOOEntryPayload(data) || isEventPayload(data) || isNoShowPayload(data))) {
       body = applyTemplate(template, { ...data, triggerEvent, createdAt }, contentType);
     } else {
       body = JSON.stringify({
@@ -252,7 +247,24 @@ const sendPayload = async (
     }
   }
 
-  return _sendPayload(secretKey, webhook, body, contentType);
+  const result = await _sendPayload(secretKey, webhook, body, contentType);
+
+  if (isEventPayload(data)) {
+    void trackPendoServerEvent({
+      event: "Webhook payload delivered",
+      visitorId: data.organizer?.id,
+      properties: {
+        trigger_event: triggerEvent,
+        booking_id: data.bookingId ?? null,
+        app_id: appId ?? null,
+        has_payload_template: !!template,
+        response_ok: result.ok,
+        response_status: result.status,
+      },
+    });
+  }
+
+  return result;
 };
 
 export const sendGenericWebhookPayload = async ({

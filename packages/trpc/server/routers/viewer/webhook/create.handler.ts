@@ -1,6 +1,7 @@
 import { v4 } from "uuid";
 
 import { updateTriggerForExistingBookings } from "@calcom/features/webhooks/lib/scheduleTrigger";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import { validateUrlForSSRFSync } from "@calcom/lib/ssrfProtection";
 import { prisma } from "@calcom/prisma";
 import type { Webhook } from "@calcom/prisma/client";
@@ -77,6 +78,23 @@ export const createHandler = async ({ ctx, input }: CreateOptions) => {
   }
 
   await updateTriggerForExistingBookings(newWebhook, [], newWebhook.eventTriggers);
+
+  let webhookScope = "user";
+  if (input.platform) webhookScope = "platform";
+  else if (input.eventTypeId) webhookScope = "event_type";
+
+  void trackPendoServerEvent({
+    event: "Webhook created",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: {
+      trigger_count: newWebhook.eventTriggers.length,
+      scope: webhookScope,
+      active: newWebhook.active,
+      has_secret: !!newWebhook.secret,
+      payload_template: !!newWebhook.payloadTemplate,
+    },
+  });
 
   return newWebhook;
 };

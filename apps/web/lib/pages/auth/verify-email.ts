@@ -4,6 +4,7 @@ import { IS_STRIPE_ENABLED, WEBAPP_URL } from "@calcom/lib/constants";
 import { prisma } from "@calcom/prisma";
 import { CreationSource, MembershipRole } from "@calcom/prisma/enums";
 import { userMetadata } from "@calcom/prisma/zod-utils";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 
@@ -15,7 +16,10 @@ const USER_ALREADY_EXISTING_MESSAGE = "A User already exists with this email";
 
 // TODO: To be unit tested
 export async function moveUserToMatchingOrg({ email }: { email: string }) {
-  const organizationRepository = { findUniqueNonPlatformOrgsByMatchingAutoAcceptEmail: async (_args: { email: string }) => null as { id: number } | null };
+  const organizationRepository = {
+    findUniqueNonPlatformOrgsByMatchingAutoAcceptEmail: async (_args: { email: string }) =>
+      null as { id: number } | null,
+  };
   const org = await organizationRepository.findUniqueNonPlatformOrgsByMatchingAutoAcceptEmail({ email });
 
   if (!org) {
@@ -44,7 +48,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   // The user is verifying the secondary email
   if (foundToken?.secondaryEmailId) {
-    await prisma.secondaryEmail.update({
+    const verifiedSecondaryEmail = await prisma.secondaryEmail.update({
       where: {
         id: foundToken.secondaryEmailId,
         email: foundToken?.identifier,
@@ -52,6 +56,15 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       data: {
         emailVerified: new Date(),
       },
+      select: {
+        userId: true,
+      },
+    });
+
+    void trackPendoServerEvent({
+      event: "Email verified",
+      visitorId: verifiedSecondaryEmail.userId,
+      properties: { email_type: "secondary" },
     });
 
     await cleanUpVerificationTokens(foundToken.id);
@@ -114,11 +127,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
     });
 
     if (IS_STRIPE_ENABLED && userMetadataParsed.stripeCustomerId) {
-        const billingService = { updateCustomer: async (_args: { customerId: string; email: string }) => {} };
-        await billingService.updateCustomer({
-          customerId: userMetadataParsed.stripeCustomerId,
-          email: updatedEmail,
-        });
+      const billingService = { updateCustomer: async (_args: { customerId: string; email: string }) => {} };
+      await billingService.updateCustomer({
+        customerId: userMetadataParsed.stripeCustomerId,
+        email: updatedEmail,
+      });
     }
 
     // The user is trying to update the email to an already existing unverified secondary email of his
@@ -136,6 +149,13 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       });
     }
 
+    void trackPendoServerEvent({
+      event: "Email verified",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: { email_type: "email_change" },
+    });
+
     await cleanUpVerificationTokens(foundToken.id);
 
     return res.status(200).json({
@@ -151,6 +171,16 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       emailVerified: new Date(),
     },
   });
+
+  // The verification token isn't removed on this path, so only report the first verification.
+  if (!user.emailVerified) {
+    void trackPendoServerEvent({
+      event: "Email verified",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: { email_type: "primary", completed_onboarding: user.completedOnboarding },
+    });
+  }
 
   const hasCompletedOnboarding = user.completedOnboarding;
 

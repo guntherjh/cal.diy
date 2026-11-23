@@ -2,6 +2,7 @@ import z from "zod";
 
 import { getUsersCredentialsIncludeServiceAccountKey } from "@calcom/app-store/delegationCredential";
 import getApps from "@calcom/app-store/utils";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import { userMetadata } from "@calcom/prisma/zod-utils";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
@@ -58,5 +59,17 @@ export const updateUserDefaultConferencingAppHandler = async ({
       },
     },
   });
+
+  void trackPendoServerEvent({
+    event: "Default conferencing app updated",
+    visitorId: ctx.user.id,
+    accountId: ctx.user.organizationId,
+    properties: {
+      app_slug: input.appSlug,
+      previous_app_slug: currentMetadata?.defaultConferencingApp?.appSlug ?? null,
+      link_type: appLocation.linkType ?? null,
+    },
+  });
+
   return input;
 };

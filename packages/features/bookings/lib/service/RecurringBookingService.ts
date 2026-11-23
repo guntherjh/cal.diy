@@ -1,5 +1,6 @@
 import type { CreateBookingMeta, CreateRecurringBookingData } from "@calcom/features/bookings/lib/dto/types";
 import type { BookingResponse } from "@calcom/features/bookings/types";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import { type CreationSource, SchedulingType } from "@calcom/prisma/enums";
 import type { AppsStatus } from "@calcom/types/Calendar";
 import type { IBookingService } from "../interfaces/IBookingService";
@@ -126,6 +127,21 @@ export const handleNewRecurringBooking = async function (
         }
       }
     }
+  }
+
+  const firstCreatedBooking = createdBookings[0];
+  if (firstCreatedBooking && !firstCreatedBooking.isDryRun) {
+    void trackPendoServerEvent({
+      event: "Recurring booking created",
+      visitorId: firstCreatedBooking.userId,
+      properties: {
+        event_type_id: firstCreatedBooking.eventTypeId,
+        occurrence_count: data.length,
+        is_round_robin: isRoundRobin,
+        is_reschedule: !!firstBooking.rescheduleUid,
+        creation_source: creationSource,
+      },
+    });
   }
 
   return createdBookings;

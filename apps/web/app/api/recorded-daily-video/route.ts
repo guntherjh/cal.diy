@@ -19,6 +19,7 @@ import { getTeamIdFromEventType } from "@calcom/lib/getTeamIdFromEventType";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import { generateVideoToken } from "@calcom/lib/videoTokens";
 import prisma from "@calcom/prisma";
 import { getBooking } from "@calcom/web/lib/daily-webhook/getBooking";
@@ -146,6 +147,17 @@ export async function postHandler(request: NextRequest) {
         if (result.status === "rejected") {
           log.error(`Failed to ${tasks[index].errorMsg}:`, safeStringify(result.reason));
         }
+      });
+
+      void trackPendoServerEvent({
+        event: "Meeting recording processed",
+        visitorId: booking.user?.id,
+        properties: {
+          booking_id: booking.id,
+          event_type_id: booking.eventTypeId,
+          is_team_event: !!teamId,
+          failed_task_count: results.filter((result) => result.status === "rejected").length,
+        },
       });
 
       return NextResponse.json({ message: "Success" });

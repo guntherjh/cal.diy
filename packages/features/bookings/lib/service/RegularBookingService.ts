@@ -66,6 +66,7 @@ import { criticalLogger } from "@calcom/lib/logger.server";
 import { getPiiFreeCalendarEvent, getPiiFreeEventType } from "@calcom/lib/piiFreeData";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
 import type { PrismaClient } from "@calcom/prisma";
@@ -2230,6 +2231,37 @@ async function handler(
     isRecurringBooking: !!input.bookingData.allRecurringDates,
     tracingLogger,
   });
+
+  // Recurring series are reported once by RecurringBookingService instead of once per occurrence.
+  if (!isDryRun && !input.bookingData.allRecurringDates) {
+    const bookingTrackProperties = {
+      booking_id: booking.id,
+      event_type_id: eventTypeId,
+      status: booking.status,
+      is_team_event: isTeamEventType,
+      requires_payment: bookingRequiresPayment,
+      attendee_count: attendeesList.length,
+      duration_minutes: dayjs(booking.endTime).diff(booking.startTime, "minutes"),
+    };
+    if (originalRescheduledBooking) {
+      void trackPendoServerEvent({
+        event: "Booking rescheduled",
+        visitorId: organizerUser.id,
+        accountId: organizerOrganizationId,
+        properties: {
+          ...bookingTrackProperties,
+          rescheduled_by_booker: !!bookerEmail && reqBody.rescheduledBy === bookerEmail,
+        },
+      });
+    } else {
+      void trackPendoServerEvent({
+        event: "Booking created",
+        visitorId: organizerUser.id,
+        accountId: organizerOrganizationId,
+        properties: bookingTrackProperties,
+      });
+    }
+  }
 
   const webhookLocation = metadata?.videoCallUrl || evt.location;
 

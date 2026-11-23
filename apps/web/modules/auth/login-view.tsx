@@ -28,6 +28,10 @@ import { useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { z } from "zod";
 
+type PendoAgent = {
+  track: (event: string, properties?: Record<string, string | boolean>) => void;
+};
+
 interface LoginValues {
   email: string;
   password: string;
@@ -36,13 +40,9 @@ interface LoginValues {
   csrfToken: string;
 }
 
-const MicrosoftIcon = () => (
-  <img className="size-4" src="/microsoft-logo.svg" alt="" />
-);
+const MicrosoftIcon = () => <img className="size-4" src="/microsoft-logo.svg" alt="" />;
 
-const GoogleIcon = () => (
-  <img className="size-4" src="/google-icon-colored.svg" alt="" />
-);
+const GoogleIcon = () => <img className="size-4" src="/google-icon-colored.svg" alt="" />;
 
 function BackgroundGrid() {
   const rows = 9;
@@ -162,6 +162,10 @@ export default function Login({
     // we're logged in! let's do a hard refresh to the desired url
     else if (!res.error) {
       setLastUsed("credentials");
+      (window as Window & { pendo?: PendoAgent }).pendo?.track("Signed in", {
+        login_method: "credentials",
+        two_factor_used: twoFactorRequired,
+      });
       router.push(callbackUrl);
     } else if (res.error === ErrorCode.SecondFactorRequired) setTwoFactorRequired(true);
     else if (res.error === ErrorCode.IncorrectBackupCode) setErrorMessage(t("incorrect_backup_code"));

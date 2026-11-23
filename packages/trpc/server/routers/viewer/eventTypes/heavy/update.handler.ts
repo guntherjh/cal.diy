@@ -10,6 +10,7 @@ import tasker from "@calcom/features/tasker";
 import { getTranslation } from "@calcom/i18n/server";
 import { validateIntervalLimitOrder } from "@calcom/lib/intervalLimits/validateIntervalLimitOrder";
 import logger from "@calcom/lib/logger";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import { validateBookerLayouts } from "@calcom/lib/validateBookerLayouts";
 import type { PrismaClient } from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
@@ -728,6 +729,19 @@ export const updateHandler = async ({ ctx, input }: UpdateOptions) => {
     }
     return acc;
   }, {});
+
+  void trackPendoServerEvent({
+    event: "Event type updated",
+    visitorId: ctx.user.id,
+    accountId: ctx.user.organizationId,
+    properties: {
+      event_type_id: id,
+      scheduling_type: updatedEventType.schedulingType,
+      updated_field_count: Object.keys(updatedValues).length,
+      locations_changed: locations !== undefined,
+      schedule_changed: schedule !== undefined,
+    },
+  });
 
   // Determine calVideoSettings to pass to children:
   // - If calVideoSettings provided in input, sync to children

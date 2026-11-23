@@ -4,6 +4,7 @@ import { BookingAccessService } from "@calcom/features/bookings/services/Booking
 import { WebhookService } from "@calcom/features/webhooks/lib/WebhookService";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import { getTranslation } from "@calcom/i18n/server";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { prisma } from "@calcom/prisma";
@@ -214,6 +215,18 @@ const handleMarkNoShow = async ({
       responsePayload.setMessage(payload.message);
 
       await handleSendingAttendeeNoShowDataToApps(bookingUid, attendees);
+
+      void trackPendoServerEvent({
+        event: "No-show recorded",
+        visitorId: userId ?? booking.user?.id,
+        properties: {
+          booking_id: booking.id,
+          event_type_id: booking.eventType?.id ?? null,
+          marked_no_show_count: payload.attendees.filter((attendee) => attendee.noShow).length,
+          unmarked_no_show_count: payload.attendees.filter((attendee) => !attendee.noShow).length,
+          is_platform_client: !!platformClientParams?.platformClientId,
+        },
+      });
     }
 
     if (noShowHost !== undefined) {
@@ -221,7 +234,6 @@ const handleMarkNoShow = async ({
       responsePayload.setNoShowHost(noShowHost);
       responsePayload.setMessage(t("booking_no_show_updated"));
     }
-
 
     return responsePayload.getPayload();
   } catch (error) {

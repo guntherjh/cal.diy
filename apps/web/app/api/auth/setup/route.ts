@@ -8,6 +8,7 @@ import { hashPassword } from "@calcom/lib/auth/hashPassword";
 import { isPasswordValid } from "@calcom/lib/auth/isPasswordValid";
 import { emailRegex } from "@calcom/lib/emailSchema";
 import { HttpError } from "@calcom/lib/http-error";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import slugify from "@calcom/lib/slugify";
 import prisma from "@calcom/prisma";
 import { IdentityProvider } from "@calcom/prisma/enums";
@@ -42,7 +43,7 @@ async function handler(req: NextRequest) {
 
   const hashedPassword = await hashPassword(parsedQuery.data.password);
 
-  await prisma.user.create({
+  const adminUser = await prisma.user.create({
     data: {
       username,
       email: userEmail,
@@ -53,6 +54,16 @@ async function handler(req: NextRequest) {
       locale: "en", // TODO: We should revisit this
       identityProvider: IdentityProvider.CAL,
       creationSource: CreationSource.WEBAPP,
+    },
+    select: { id: true },
+  });
+
+  void trackPendoServerEvent({
+    event: "Administrator account created",
+    visitorId: adminUser.id,
+    properties: {
+      role: "ADMIN",
+      creation_source: CreationSource.WEBAPP,
     },
   });
 

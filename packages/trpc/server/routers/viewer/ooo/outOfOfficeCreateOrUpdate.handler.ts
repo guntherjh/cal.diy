@@ -8,6 +8,7 @@ import getWebhooks from "@calcom/features/webhooks/lib/getWebhooks";
 import type { OOOEntryPayloadType } from "@calcom/features/webhooks/lib/sendPayload";
 import sendPayload from "@calcom/features/webhooks/lib/sendPayload";
 import { getTranslation } from "@calcom/i18n/server";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import { WebhookTriggerEvents } from "@calcom/prisma/enums";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
@@ -15,7 +16,7 @@ import type { TrpcSessionUser } from "@calcom/trpc/server/types";
 import { TRPCError } from "@trpc/server";
 
 import { isAdminForUser } from "./outOfOffice.utils";
-import { type TOutOfOfficeInputSchema } from "./outOfOfficeCreateOrUpdate.schema";
+import type { TOutOfOfficeInputSchema } from "./outOfOfficeCreateOrUpdate.schema";
 
 type TBookingRedirect = {
   ctx: {
@@ -321,6 +322,19 @@ export const outOfOfficeCreateOrUpdate = async ({ ctx, input }: TBookingRedirect
       }
     }
   }
+
+  void trackPendoServerEvent({
+    event: "Out-of-office entry saved",
+    visitorId: ctx.user.id,
+    accountId: ctx.user.organizationId,
+    properties: {
+      is_update: !!previousOutOfOfficeEntry,
+      has_redirect: !!toUserId,
+      has_reason: !!input.reasonId,
+      set_for_other_user: oooUserId !== ctx.user.id,
+      duration_days: endTimeUtc.diff(startTimeUtc, "day"),
+    },
+  });
 
   const memberships = await prisma.membership.findMany({
     where: {

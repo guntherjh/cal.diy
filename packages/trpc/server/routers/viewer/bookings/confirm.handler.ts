@@ -23,6 +23,7 @@ import { parseRecurringEvent } from "@calcom/lib/isRecurringEvent";
 import { getTranslation } from "@calcom/i18n/server";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrack";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import type { TraceContext } from "@calcom/lib/tracing";
 import { prisma } from "@calcom/prisma";
@@ -477,11 +478,23 @@ export const confirmHandler = async ({ ctx, input }: ConfirmOptions) => {
       smsReminderNumber: booking.smsReminderNumber || undefined,
     };
     await handleWebhookTrigger({ subscriberOptions, eventTrigger, webhookData, traceContext });
-
   }
 
   const message = confirmed ? "Booking confirmed" : "Booking rejected";
   const status = confirmed ? BookingStatus.ACCEPTED : BookingStatus.REJECTED;
+
+  void trackPendoServerEvent({
+    event: "Booking confirmed or rejected",
+    visitorId: ctx.user.id,
+    properties: {
+      booking_id: bookingId,
+      event_type_id: booking.eventTypeId,
+      decision: confirmed ? "confirmed" : "rejected",
+      is_recurring: !!recurringEventId,
+      has_rejection_reason: !confirmed && !!rejectionReason,
+      emails_enabled: emailsEnabled !== false,
+    },
+  });
 
   return { message, status };
 };
