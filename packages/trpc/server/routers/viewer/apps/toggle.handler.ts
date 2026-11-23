@@ -1,6 +1,7 @@
 import { getLocalAppMetadata } from "@calcom/app-store/utils";
 import { sendDisabledAppEmail } from "@calcom/emails/integration-email-service";
 import { getTranslation } from "@calcom/i18n/server";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import type { PrismaClient } from "@calcom/prisma";
 import { AppCategories } from "@calcom/prisma/enums";
 
@@ -164,6 +165,16 @@ export const toggleHandler = async ({ input, ctx }: ToggleOptions) => {
       );
     }
   }
+
+  void pendoTrack({
+    event: "App availability changed",
+    visitorId: ctx.user.id,
+    properties: {
+      app_slug: app.slug,
+      app_categories: app.categories,
+      enabled: app.enabled,
+    },
+  });
 
   return app.enabled;
 };

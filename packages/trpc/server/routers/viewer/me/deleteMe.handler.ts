@@ -4,6 +4,7 @@ import { deleteUser } from "@calcom/features/users/lib/deleteUser";
 import { symmetricDecrypt } from "@calcom/lib/crypto";
 import { isPasswordValid } from "@calcom/lib/auth/isPasswordValid";
 import { HttpError } from "@calcom/lib/http-error";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { totpAuthenticatorCheck } from "@calcom/lib/totp";
 import { prisma } from "@calcom/prisma";
 import { IdentityProvider } from "@calcom/prisma/enums";
@@ -96,5 +97,15 @@ export const deleteMeHandler = async ({ ctx, input }: DeleteMeOptions) => {
   }
 
   await deleteUser(user);
+
+  void pendoTrack({
+    event: "Account deleted",
+    visitorId: user.id,
+    accountId: ctx.user.organizationId,
+    properties: {
+      had_two_factor_enabled: user.twoFactorEnabled,
+      identity_provider: user.identityProvider,
+    },
+  });
   return;
 };

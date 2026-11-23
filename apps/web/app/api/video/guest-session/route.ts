@@ -11,6 +11,7 @@ import { getHostsAndGuests } from "@calcom/features/bookings/lib/getHostsAndGues
 import { BookingRepository } from "@calcom/features/bookings/repositories/BookingRepository";
 import { getCalVideoReference } from "@calcom/features/get-cal-video-reference";
 import { VideoCallGuestRepository } from "@calcom/features/video-call-guest/repositories/VideoCallGuestRepository";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import { validateCsrfToken } from "@calcom/web/lib/validateCsrfToken";
 
@@ -60,6 +61,18 @@ async function handler(req: NextRequest) {
     bookingUid: guestData.bookingUid,
     email: guestData.email,
     name: guestData.name,
+  });
+
+  // Guests join without an account, so the event is attributed to the booking's host
+  void pendoTrack({
+    event: "Guest joined meeting",
+    visitorId: booking.user?.id,
+    properties: {
+      booking_id: booking.id,
+      event_type_id: booking.eventType?.id ?? null,
+      guest_session_id: guestSession.id,
+      is_recorded: booking.isRecorded,
+    },
   });
 
   const videoReference = getCalVideoReference(booking.references);

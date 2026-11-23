@@ -2,6 +2,7 @@ import { handleNoShowFee } from "@calcom/features/bookings/lib/payment/handleNoS
 import { BookingRepository } from "@calcom/features/bookings/repositories/BookingRepository";
 import { ErrorCode } from "@calcom/lib/errorCodes";
 import { ErrorWithCode } from "@calcom/lib/errors";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import type { PrismaClient } from "@calcom/prisma";
 
 import { TRPCError } from "@trpc/server";
@@ -71,4 +72,18 @@ export const chargeCardHandler = async ({ ctx, input }: ChargeCardHandlerOptions
       message: `Failed to charge no show fee for ${booking.id}`,
     });
   }
+
+  void pendoTrack({
+    event: "No-show fee charged",
+    visitorId: ctx.user.id,
+    accountId: ctx.user.organizationId,
+    properties: {
+      booking_id: booking.id,
+      event_type_id: booking.eventTypeId,
+      amount: booking.payment[0].amount,
+      currency: booking.payment[0].currency,
+      payment_app: booking.payment[0].appId,
+      is_team_event: !!booking.eventType?.teamId,
+    },
+  });
 };

@@ -6,6 +6,7 @@ import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
 import { deriveAppDictKeyFromType } from "@calcom/lib/deriveAppDictKeyFromType";
 import { HttpError } from "@calcom/lib/http-error";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import type { AppDeclarativeHandler, AppHandler } from "@calcom/types/AppHandler";
 
@@ -42,6 +43,16 @@ const defaultIntegrationAddHandler = async ({
   await throwIfNotHaveAdminAccessToTeam({ teamId: teamId ?? null, userId: user.id });
 
   await createCredential({ user: user, appType, slug, teamId });
+
+  void pendoTrack({
+    event: "App installed",
+    visitorId: user.id,
+    properties: {
+      app_slug: slug,
+      app_type: appType,
+      is_team_install: !!teamId,
+    },
+  });
 };
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sendNotification } from "@calcom/features/notifications/sendNotification";
 import { WEBAPP_URL } from "@calcom/lib/constants";
 import logger from "@calcom/lib/logger";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { getTranslation } from "@calcom/i18n/server";
 import prisma from "@calcom/prisma";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
@@ -66,6 +67,15 @@ export const addNotificationsSubscriptionHandler = async ({ ctx, input }: AddSec
       data: { userId: user.id, subscription },
     });
   }
+
+  void pendoTrack({
+    event: "Push notifications subscribed",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: {
+      is_resubscription: !!existingSubscription,
+    },
+  });
 
   const t = await getTranslation(user.locale ?? "en", "common");
 

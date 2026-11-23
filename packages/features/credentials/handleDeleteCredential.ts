@@ -484,6 +484,11 @@ const handleDeleteCredential = async ({
       id: credentialId,
     },
   });
+
+  return {
+    appSlug: credential.app?.slug ?? credential.appId,
+    appCategories: credential.app?.categories ?? [],
+  };
 };
 
 const removeAppFromEventTypeMetadata = (

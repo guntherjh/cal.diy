@@ -1,3 +1,4 @@
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 
 import type { TSubmitRatingInputSchema } from "./submitRating.schema";
@@ -8,13 +9,30 @@ type SubmitRatingOptions = {
 
 export const submitRatingHandler = async ({ input }: SubmitRatingOptions) => {
   const { bookingUid, rating, comment } = input;
-  await prisma.booking.update({
+  const booking = await prisma.booking.update({
     where: {
       uid: bookingUid,
     },
     data: {
       rating: rating,
       ratingFeedback: comment,
+    },
+    select: {
+      id: true,
+      userId: true,
+      eventTypeId: true,
+    },
+  });
+
+  // Attendees rate meetings without signing in, so the event is attributed to the booking's host
+  void pendoTrack({
+    event: "Meeting feedback submitted",
+    visitorId: booking.userId,
+    properties: {
+      booking_id: booking.id,
+      event_type_id: booking.eventTypeId,
+      rating,
+      has_comment: !!comment,
     },
   });
 };

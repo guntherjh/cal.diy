@@ -1,9 +1,8 @@
-import { v4 } from "uuid";
-
 import { generateUniqueAPIKey } from "@calcom/features/api-keys-legacy/api-keys/lib/apiKeys";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import { MembershipRole } from "@calcom/prisma/enums";
-
+import { v4 } from "uuid";
 import type { TrpcSessionUser } from "../../../types";
 import { checkPermissions } from "./_auth-middleware";
 import type { TCreateInputSchema } from "./create.schema";
@@ -34,6 +33,17 @@ export const createHandler = async ({ ctx, input }: CreateHandlerOptions) => {
       // And here we pass a null to expiresAt if never expires is true. otherwise just pass expiresAt from input
       expiresAt: neverExpires ? null : rest.expiresAt,
       hashedKey: hashedApiKey,
+    },
+  });
+
+  void pendoTrack({
+    event: "API key created",
+    visitorId: userId,
+    properties: {
+      is_team_key: !!teamId,
+      never_expires: !!neverExpires,
+      app_id: rest.appId ?? null,
+      has_note: !!rest.note,
     },
   });
 

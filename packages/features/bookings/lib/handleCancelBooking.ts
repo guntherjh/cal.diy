@@ -50,6 +50,7 @@ import { getBookingToDelete } from "./getBookingToDelete";
 import cancelAttendeeSeat from "./handleSeats/cancel/cancelAttendeeSeat";
 import type { IBookingCancelService } from "./interfaces/IBookingCancelService";
 import { isPrismaError } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 
 const log = logger.getSubLogger({ prefix: ["handleCancelBooking"] });
 
@@ -80,17 +81,13 @@ type Dependencies = {
 
 async function handler(input: CancelBookingInput, dependencies?: Dependencies) {
   const prismaClient = prisma;
-  const {
-    userRepository,
-    bookingRepository,
-    bookingReferenceRepository,
-    attendeeRepository,
-  } = dependencies || {
-    userRepository: new UserRepository(prismaClient),
-    bookingRepository: new BookingRepository(prismaClient),
-    bookingReferenceRepository: new BookingReferenceRepository({ prismaClient }),
-    attendeeRepository: new PrismaBookingAttendeeRepository(prismaClient),
-  };
+  const { userRepository, bookingRepository, bookingReferenceRepository, attendeeRepository } =
+    dependencies || {
+      userRepository: new UserRepository(prismaClient),
+      bookingRepository: new BookingRepository(prismaClient),
+      bookingReferenceRepository: new BookingReferenceRepository({ prismaClient }),
+      attendeeRepository: new PrismaBookingAttendeeRepository(prismaClient),
+    };
   const body = input.bookingData;
   const {
     id,
@@ -103,12 +100,12 @@ async function handler(input: CancelBookingInput, dependencies?: Dependencies) {
     skipCancellationReasonValidation = false,
     skipCalendarSyncTaskCancellation = false,
   } = bookingCancelInput.parse(body);
-  let bookingToDelete: BookingToDelete
+  let bookingToDelete: BookingToDelete;
   try {
     bookingToDelete = await getBookingToDelete(id, uid);
   } catch (error) {
-    if (isPrismaError(error) && error.code === "P2025") // Record not found
-    {
+    if (isPrismaError(error) && error.code === "P2025") {
+      // Record not found
       throw new HttpError({
         statusCode: 404,
         message: "Booking not found.",
@@ -124,7 +121,6 @@ async function handler(input: CancelBookingInput, dependencies?: Dependencies) {
     platformRescheduleUrl,
     arePlatformEmailsEnabled,
   } = input;
-
 
   /**
    * Important: We prevent cancelling an already cancelled booking.
@@ -158,7 +154,12 @@ async function handler(input: CancelBookingInput, dependencies?: Dependencies) {
     isCancellationUserHost
   );
 
-  if (!platformClientId && !cancellationReason?.trim() && isReasonRequired && !skipCancellationReasonValidation) {
+  if (
+    !platformClientId &&
+    !cancellationReason?.trim() &&
+    isReasonRequired &&
+    !skipCancellationReasonValidation
+  ) {
     throw new HttpError({
       statusCode: 400,
       message: "Cancellation reason is required",
@@ -514,6 +515,22 @@ async function handler(input: CancelBookingInput, dependencies?: Dependencies) {
   } catch (error) {
     log.error("Error deleting event", error);
   }
+
+  void pendoTrack({
+    event: "Booking cancelled",
+    // Attendees cancel without signing in, which the cancel route passes as -1
+    visitorId: userId && userId > 0 ? userId : bookingToDelete.userId,
+    properties: {
+      booking_id: bookingToDelete.id,
+      event_type_id: bookingToDelete.eventTypeId,
+      cancelled_by_host: isCancellationUserHost,
+      cancelled_booking_count: updatedBookings.length,
+      is_recurring_series: isBookingInRecurringSeries,
+      has_cancellation_reason: !!cancellationReason,
+      is_platform_booking: !!platformClientId,
+    },
+  });
+
   return {
     success: true,
     message: "Booking successfully cancelled.",

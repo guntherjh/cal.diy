@@ -14,6 +14,7 @@ import { hashPassword } from "@calcom/lib/auth/hashPassword";
 
 import logger from "@calcom/lib/logger";
 import { isPrismaError } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { isUsernameReservedDueToMigration } from "@calcom/lib/server/username";
 import slugify from "@calcom/lib/slugify";
 import { prisma } from "@calcom/prisma";
@@ -26,7 +27,7 @@ import { CreationSource } from "@calcom/prisma/enums";
 export default async function handler(body: Record<string, string>) {
   const { email, password, language, token } = signupSchema.parse(body);
 
-  const userRepository = getUserRepository()
+  const userRepository = getUserRepository();
 
   const username = slugify(body.username);
   const userEmail = email.toLowerCase();
@@ -49,8 +50,8 @@ export default async function handler(body: Record<string, string>) {
 
     if (foundToken?.teamId) {
       const existingUser = await userRepository.findByEmailWithInvitedTo({
-        email: userEmail
-      })
+        email: userEmail,
+      });
 
       if (existingUser && existingUser.invitedTo !== foundToken.teamId) {
         return NextResponse.json({ message: SIGNUP_ERROR_CODES.USER_ALREADY_EXISTS }, { status: 409 });
@@ -73,6 +74,8 @@ export default async function handler(body: Record<string, string>) {
   }
 
   const hashedPassword = await hashPassword(password);
+
+  let createdUser: { id: number; organizationId: number | null } | null = null;
 
   if (foundToken?.teamId) {
     const team = await prisma.team.findUnique({
@@ -107,8 +110,8 @@ export default async function handler(body: Record<string, string>) {
       const existingUserByUsername = await userRepository.findByUsernameAndOrganizationId({
         username: correctedUsername,
         organizationId,
-        excludeEmail: userEmail
-      })
+        excludeEmail: userEmail,
+      });
 
       if (existingUserByUsername) {
         return NextResponse.json({ message: SIGNUP_ERROR_CODES.USER_ALREADY_EXISTS }, { status: 409 });
@@ -122,8 +125,8 @@ export default async function handler(body: Record<string, string>) {
           hashedPassword,
           organizationId,
           emailVerified: new Date(Date.now()),
-          identityProvider: IdentityProvider.CAL
-        })
+          identityProvider: IdentityProvider.CAL,
+        });
       } catch (error) {
         if (isPrismaError(error) && error.code === "P2002") {
           const target = String(error.meta?.target ?? "");
@@ -133,6 +136,8 @@ export default async function handler(body: Record<string, string>) {
         }
         throw error;
       }
+
+      createdUser = { id: user.id, organizationId };
 
       await createOrUpdateMemberships({
         user,
@@ -160,15 +165,15 @@ export default async function handler(body: Record<string, string>) {
       return NextResponse.json({ message: "A user exists with that username" }, { status: 409 });
     }
     try {
-      await userRepository.create({
+      createdUser = await userRepository.create({
         username: correctedUsername,
         email: userEmail,
         hashedPassword,
         organizationId: null,
         creationSource: CreationSource.WEBAPP,
         identityProvider: IdentityProvider.CAL,
-        locked: false
-      })
+        locked: false,
+      });
     } catch (error) {
       // Fallback for race conditions where user was created between our check and create
       if (isPrismaError(error) && error.code === "P2002") {
@@ -188,6 +193,19 @@ export default async function handler(body: Record<string, string>) {
       email: userEmail,
       username: correctedUsername,
       language,
+    });
+  }
+
+  if (createdUser) {
+    void pendoTrack({
+      event: "Account created",
+      visitorId: createdUser.id,
+      accountId: createdUser.organizationId,
+      properties: {
+        signup_method: "email",
+        joined_via_team_invite: !!foundToken?.teamId,
+        locale: language ?? null,
+      },
     });
   }
 

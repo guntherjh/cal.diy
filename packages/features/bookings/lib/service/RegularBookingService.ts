@@ -66,6 +66,7 @@ import { criticalLogger } from "@calcom/lib/logger.server";
 import { getPiiFreeCalendarEvent, getPiiFreeEventType } from "@calcom/lib/piiFreeData";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
 import type { PrismaClient } from "@calcom/prisma";
@@ -2547,6 +2548,27 @@ async function handler(
       } catch (err) {
         tracingLogger.error("bookingEmailAndSmsTasker error:", err);
       }
+    }
+
+    // Each occurrence of a recurring series runs through here, so the series is tracked once in the recurring endpoint instead
+    if (!input.bookingData.allRecurringDates) {
+      void pendoTrack({
+        event: rescheduleUid ? "Booking rescheduled" : "Booking created",
+        visitorId: organizerUser.id,
+        accountId: organizerOrganizationId,
+        properties: {
+          booking_id: booking.id,
+          event_type_id: eventTypeId,
+          booking_status: booking.status,
+          requires_confirmation: !isConfirmedByDefault,
+          scheduling_type: eventType.schedulingType ?? "INDIVIDUAL",
+          is_team_event: isTeamEventType,
+          is_seated_event: !!eventType.seatsPerTimeSlot,
+          is_platform_booking: isPlatformBooking,
+          duration_minutes: dayjs(reqBody.end).diff(dayjs(reqBody.start), "minutes"),
+          attendee_count: evt.attendees.length,
+        },
+      });
     }
   }
 

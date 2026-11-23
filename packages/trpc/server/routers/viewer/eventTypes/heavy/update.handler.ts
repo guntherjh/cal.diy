@@ -10,6 +10,7 @@ import tasker from "@calcom/features/tasker";
 import { getTranslation } from "@calcom/i18n/server";
 import { validateIntervalLimitOrder } from "@calcom/lib/intervalLimits/validateIntervalLimitOrder";
 import logger from "@calcom/lib/logger";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { validateBookerLayouts } from "@calcom/lib/validateBookerLayouts";
 import type { PrismaClient } from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
@@ -774,5 +775,23 @@ export const updateHandler = async ({ ctx, input }: UpdateOptions) => {
       logger.debug((e as Error)?.message);
     }
   }
+
+  const updatedFields = Object.entries(input)
+    .filter(([key, value]) => key !== "id" && value !== undefined)
+    .map(([key]) => key);
+  void pendoTrack({
+    event: "Event type updated",
+    visitorId: ctx.user.id,
+    accountId: ctx.user.organizationId,
+    properties: {
+      event_type_id: id,
+      scheduling_type: updatedEventType.schedulingType ?? "INDIVIDUAL",
+      is_team_event: !!teamId,
+      updated_field_count: updatedFields.length,
+      // Capped to stay within Pendo's 512-byte limit for event properties
+      updated_fields: updatedFields.slice(0, 10),
+    },
+  });
+
   return { eventType };
 };

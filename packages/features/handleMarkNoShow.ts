@@ -4,6 +4,7 @@ import { BookingAccessService } from "@calcom/features/bookings/services/Booking
 import { WebhookService } from "@calcom/features/webhooks/lib/WebhookService";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { getTranslation } from "@calcom/i18n/server";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { prisma } from "@calcom/prisma";
@@ -222,6 +223,20 @@ const handleMarkNoShow = async ({
       responsePayload.setMessage(t("booking_no_show_updated"));
     }
 
+    const { attendees: updatedAttendees } = responsePayload.getPayload();
+    void pendoTrack({
+      event: "No-show recorded",
+      visitorId: userId ?? booking.user?.id,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventType?.id ?? null,
+        attendees_updated_count: updatedAttendees.length,
+        attendees_marked_no_show_count: updatedAttendees.filter((attendee) => attendee.noShow).length,
+        host_no_show_updated: noShowHost !== undefined,
+        no_show_host: noShowHost ?? null,
+        marked_by_user: !!userId,
+      },
+    });
 
     return responsePayload.getPayload();
   } catch (error) {

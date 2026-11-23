@@ -11,6 +11,7 @@ import { buildCalEventFromBooking } from "@calcom/lib/buildCalEventFromBooking";
 import { getVideoCallUrlFromCalEvent } from "@calcom/lib/CalEventParser";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { getTranslation } from "@calcom/i18n/server";
 import { prisma } from "@calcom/prisma";
 import type { Booking, BookingReference } from "@calcom/prisma/client";
@@ -314,6 +315,20 @@ export async function editLocationHandler({ ctx, input, actionSource }: EditLoca
   } catch (error) {
     logger.error("Error sending LocationChangeEmails", safeStringify(error));
   }
+
+  void pendoTrack({
+    event: "Booking location changed",
+    visitorId: loggedInUser.id,
+    accountId: loggedInUser.organizationId,
+    properties: {
+      booking_id: booking.id,
+      event_type_id: booking.eventTypeId,
+      // Non-integration locations hold addresses, phone numbers, or links, so only app locations are sent as-is
+      new_location_type: newLocation.startsWith("integrations:") ? newLocation : "custom",
+      changed_by_organizer: booking.userId === loggedInUser.id,
+      action_source: actionSource,
+    },
+  });
 
   return { message: "Location updated" };
 }

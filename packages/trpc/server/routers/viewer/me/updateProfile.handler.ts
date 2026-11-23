@@ -7,6 +7,7 @@ import hasKeyInMetadata from "@calcom/lib/hasKeyInMetadata";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { uploadAvatar } from "@calcom/lib/server/avatar";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { getTranslation } from "@calcom/i18n/server";
 import { resizeBase64Image } from "@calcom/lib/server/resizeBase64Image";
 import slugify from "@calcom/lib/slugify";
@@ -24,7 +25,9 @@ import { type TUpdateProfileInputSchema, updateUserMetadataAllowedKeys } from ".
 const getBillingProviderService = async (..._args: unknown[]) => ({
   createCustomer: async (..._a: unknown[]) => null,
   getCustomer: async (..._a: unknown[]) => null,
-  getSubscriptions: async (..._a: unknown[]): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
+  getSubscriptions: async (
+    ..._a: unknown[]
+  ): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
   updateCustomer: async (..._a: unknown[]) => null,
 });
 const updateNewTeamMemberEventTypes = async (..._args: unknown[]) => {};
@@ -167,6 +170,7 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
     });
   }
 
+  let userTeamCount = 0;
   if (input.completedOnboarding) {
     const userTeams = await prisma.user.findUnique({
       where: {
@@ -180,6 +184,7 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
         },
       },
     });
+    userTeamCount = userTeams?.teams.length ?? 0;
     if (userTeams && userTeams.teams.length > 0) {
       await Promise.all(
         userTeams.teams.map(async (team) => {
@@ -388,6 +393,22 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
 
       await prisma.$transaction(recordsToModifyQueue);
     }
+  }
+
+  // Onboarding can be re-submitted, so only the first transition to completed is tracked
+  if (input.completedOnboarding && !user.completedOnboarding) {
+    void pendoTrack({
+      event: "Onboarding completed",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: {
+        team_count: userTeamCount,
+        schedule_count: updatedUser.schedules.length,
+        has_avatar: !!updatedUser.avatarUrl,
+        locale: updatedUser.locale,
+        identity_provider: updatedUser.identityProvider,
+      },
+    });
   }
 
   return {
