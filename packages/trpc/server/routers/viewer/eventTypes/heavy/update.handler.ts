@@ -10,6 +10,7 @@ import tasker from "@calcom/features/tasker";
 import { getTranslation } from "@calcom/i18n/server";
 import { validateIntervalLimitOrder } from "@calcom/lib/intervalLimits/validateIntervalLimitOrder";
 import logger from "@calcom/lib/logger";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { validateBookerLayouts } from "@calcom/lib/validateBookerLayouts";
 import type { PrismaClient } from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
@@ -774,5 +775,19 @@ export const updateHandler = async ({ ctx, input }: UpdateOptions) => {
       logger.debug((e as Error)?.message);
     }
   }
+
+  await pendoTrack({
+    event: "Event type updated",
+    visitorId: ctx.user.id,
+    accountId: ctx.user.organizationId ?? eventType.team?.id,
+    properties: {
+      event_type_id: id,
+      scheduling_type: updatedEventType.schedulingType ?? "individual",
+      is_team_event: !!eventType.team,
+      updated_fields: Object.keys(updatedValues).slice(0, 8),
+      updated_field_count: Object.keys(updatedValues).length,
+    },
+  });
+
   return { eventType };
 };

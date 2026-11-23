@@ -66,6 +66,7 @@ import { criticalLogger } from "@calcom/lib/logger.server";
 import { getPiiFreeCalendarEvent, getPiiFreeEventType } from "@calcom/lib/piiFreeData";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
 import type { PrismaClient } from "@calcom/prisma";
@@ -2548,6 +2549,27 @@ async function handler(
         tracingLogger.error("bookingEmailAndSmsTasker error:", err);
       }
     }
+  }
+
+  // Recurring series call this handler once per occurrence, so only the first slot counts as a booking
+  if (!isDryRun && isNormalBookingOrFirstRecurringSlot) {
+    await pendoTrack({
+      event: "Booking created",
+      visitorId: organizerUser.id,
+      accountId: organizerOrganizationId ?? eventType.team?.id,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: eventTypeId,
+        booking_status: booking.status,
+        scheduling_type: eventType.schedulingType ?? "individual",
+        is_team_event: isTeamEventType,
+        is_reschedule: !!originalRescheduledBooking,
+        is_recurring: !!input.bookingData.allRecurringDates,
+        recurring_count: input.bookingData.allRecurringDates?.length,
+        booker_logged_in: !!userId,
+        creation_source: input.bookingData.creationSource ?? undefined,
+      },
+    });
   }
 
   // TODO: Refactor better so this booking object is not passed

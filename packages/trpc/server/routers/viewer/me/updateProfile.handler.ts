@@ -3,11 +3,12 @@ import { sendChangeOfEmailVerification } from "@calcom/features/auth/lib/verifyE
 import { FeaturesRepository } from "@calcom/features/flags/features.repository";
 import { checkUsername } from "@calcom/features/profile/lib/checkUsername";
 import { ScheduleRepository } from "@calcom/features/schedules/repositories/ScheduleRepository";
+import { getTranslation } from "@calcom/i18n/server";
 import hasKeyInMetadata from "@calcom/lib/hasKeyInMetadata";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { uploadAvatar } from "@calcom/lib/server/avatar";
-import { getTranslation } from "@calcom/i18n/server";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { resizeBase64Image } from "@calcom/lib/server/resizeBase64Image";
 import slugify from "@calcom/lib/slugify";
 import { validateBookerLayouts } from "@calcom/lib/validateBookerLayouts";
@@ -24,7 +25,9 @@ import { type TUpdateProfileInputSchema, updateUserMetadataAllowedKeys } from ".
 const getBillingProviderService = async (..._args: unknown[]) => ({
   createCustomer: async (..._a: unknown[]) => null,
   getCustomer: async (..._a: unknown[]) => null,
-  getSubscriptions: async (..._a: unknown[]): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
+  getSubscriptions: async (
+    ..._a: unknown[]
+  ): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
   updateCustomer: async (..._a: unknown[]) => null,
 });
 const updateNewTeamMemberEventTypes = async (..._args: unknown[]) => {};
@@ -388,6 +391,34 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
 
       await prisma.$transaction(recordsToModifyQueue);
     }
+  }
+
+  await pendoTrack({
+    event: "Profile updated",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: {
+      updated_fields: Object.keys(input)
+        .filter((key) => key !== "secondaryEmails")
+        .slice(0, 8),
+      email_changed: !!hasEmailBeenChanged,
+      avatar_changed: !!data.avatarUrl,
+      time_zone_changed: !!data.timeZone && user.timeZone !== data.timeZone,
+      locale: updatedUser.locale,
+    },
+  });
+
+  // Gate on the stored flag so re-saving the final onboarding step doesn't count as a new activation
+  if (input.completedOnboarding && !user.completedOnboarding) {
+    await pendoTrack({
+      event: "Onboarding completed",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: {
+        locale: updatedUser.locale,
+        time_zone: typeof data.timeZone === "string" ? data.timeZone : user.timeZone,
+      },
+    });
   }
 
   return {

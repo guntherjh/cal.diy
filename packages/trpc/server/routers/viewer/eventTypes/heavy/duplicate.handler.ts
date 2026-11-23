@@ -1,11 +1,10 @@
+import { CalVideoSettingsRepository } from "@calcom/features/calVideoSettings/repositories/CalVideoSettingsRepository";
 import { EventTypeRepository } from "@calcom/features/eventtypes/repositories/eventTypeRepository";
 import { generateHashedLink } from "@calcom/lib/generateHashedLink";
-import { CalVideoSettingsRepository } from "@calcom/features/calVideoSettings/repositories/CalVideoSettingsRepository";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
-
 import { TRPCError } from "@trpc/server";
-
 import type { TrpcSessionUser } from "../../../../types";
 import { setDestinationCalendarHandler } from "../../../viewer/calendars/setDestinationCalendar.handler";
 import type { TDuplicateInputSchema } from "./duplicate.schema";
@@ -218,19 +217,31 @@ export const duplicateHandler = async ({ ctx, input }: DuplicateOptions) => {
       });
     }
 
+    await pendoTrack({
+      event: "Event type duplicated",
+      visitorId: ctx.user.id,
+      accountId: ctx.user.organizationId ?? newEventType.teamId,
+      properties: {
+        event_type_id: newEventType.id,
+        original_event_type_id: originalEventTypeId,
+        scheduling_type: newEventType.schedulingType ?? "individual",
+        is_team_event: !!newEventType.teamId,
+        length_minutes: newEventType.length,
+      },
+    });
+
     return {
       eventType: newEventType,
     };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      
       if (Array.isArray(error.meta?.target) && error.meta?.target.includes("slug")) {
         throw new TRPCError({
           code: "CONFLICT",
           message: "duplicate_event_slug_conflict",
         });
       }
-      
+
       throw new TRPCError({
         code: "CONFLICT",
         message: "Unique constraint violation while creating a duplicate event.",

@@ -1,15 +1,13 @@
 import { PrismaBookingReportRepository } from "@calcom/features/bookingReport/repositories/PrismaBookingReportRepository";
-
 import handleCancelBooking from "@calcom/features/bookings/lib/handleCancelBooking";
 import { BookingRepository } from "@calcom/features/bookings/repositories/BookingRepository";
 import { BookingAccessService } from "@calcom/features/bookings/services/BookingAccessService";
 import logger from "@calcom/lib/logger";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import { BookingStatus } from "@calcom/prisma/enums";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
-
 import { TRPCError } from "@trpc/server";
-
 import type { TReportBookingInputSchema } from "./reportBooking.schema";
 
 type ReportBookingOptions = {
@@ -91,7 +89,6 @@ export const reportBookingHandler = async ({ ctx, input }: ReportBookingOptions)
           ...(seatReferenceUid ? { seatReferenceUid } : {}),
         },
         userId: user.id,
-
       });
       didCancel = true;
     } catch (error) {
@@ -116,6 +113,23 @@ export const reportBookingHandler = async ({ ctx, input }: ReportBookingOptions)
     } catch (error) {
       log.warn(`Failed to create report for booking ${uid}:`, error);
     }
+  }
+
+  if (createdCount > 0) {
+    await pendoTrack({
+      event: "Booking reported",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: {
+        booking_id: booking.id,
+        report_reason: reason,
+        has_description: !!description,
+        reported_count: createdCount,
+        is_recurring: Boolean(booking.recurringEventId),
+        cancellation_attempted: cancellationAttempted,
+        booking_cancelled: didCancel,
+      },
+    });
   }
 
   const reportedBooking = { uid: reportedBookingUids[0] };

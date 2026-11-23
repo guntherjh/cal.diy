@@ -1,17 +1,17 @@
-import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
-import { parseRequestData } from "app/api/parseRequestData";
-import { cookies, headers } from "next/headers";
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-
+import process from "node:process";
 import { ErrorCode } from "@calcom/features/auth/lib/ErrorCode";
 import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
 import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowError";
 import { symmetricDecrypt } from "@calcom/lib/crypto";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { totpAuthenticatorCheck } from "@calcom/lib/totp";
 import prisma from "@calcom/prisma";
-
 import { buildLegacyRequest } from "@lib/buildLegacyCtx";
+import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
+import { parseRequestData } from "app/api/parseRequestData";
+import { cookies, headers } from "next/headers";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 async function postHandler(req: NextRequest) {
   const body = await parseRequestData(req);
@@ -69,6 +69,17 @@ async function postHandler(req: NextRequest) {
     },
     data: {
       twoFactorEnabled: true,
+    },
+  });
+
+  await pendoTrack({
+    event: "Two-factor authentication enabled",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: {
+      method: "totp",
+      user_role: user.role,
+      identity_provider: user.identityProvider,
     },
   });
 
