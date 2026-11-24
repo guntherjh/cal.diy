@@ -118,7 +118,7 @@ export const EventDuration = ({
         {durations
           .filter((dur) => state !== "booking" || dur === selectedDuration)
           .map((duration, index) => (
-            <li
+            <li data-novus-id="booking-page-change-meeting-duration"
               data-testId={`multiple-choice-${duration}mins`}
               data-active={selectedDuration === duration ? "true" : "false"}
               key={index}

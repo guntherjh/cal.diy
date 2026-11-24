@@ -106,7 +106,7 @@ export const AdminUser = (props: {
 
   return (
     <FormProvider {...formMethods}>
-      <form id="wizard-step-1" name="wizard-step-1" className="stack-y-4" onSubmit={onSubmit}>
+      <form data-novus-id="instance-setup-wizard-create-the-first-admin-account" id="wizard-step-1" name="wizard-step-1" className="stack-y-4" onSubmit={onSubmit}>
         <div>
           <Controller
             name="username"
