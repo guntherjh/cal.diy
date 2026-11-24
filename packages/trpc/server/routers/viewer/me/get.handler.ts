@@ -85,6 +85,19 @@ export const getHandler = async ({ ctx, input }: MeOptions) => {
     identityProviderEmail = account?.providerEmail || "";
   }
 
+  // Not part of the session user select, but needed for product analytics visitor metadata
+  const userActivity = await prisma.user.findUnique({
+    where: {
+      id: user.id,
+    },
+    select: {
+      lastActiveAt: true,
+      creationSource: true,
+      locked: true,
+      isPlatformManaged: true,
+    },
+  });
+
   const userMetadataPrased = userMetadata.parse(user.metadata);
 
   // Destructuring here only makes it more illegible
@@ -117,6 +130,7 @@ export const getHandler = async ({ ctx, input }: MeOptions) => {
 
   return {
     id: user.id,
+    uuid: user.uuid,
     name: user.name,
     email: user.email,
     emailMd5: crypto.createHash("md5").update(user.email).digest("hex"),
@@ -147,6 +161,10 @@ export const getHandler = async ({ ctx, input }: MeOptions) => {
     allowSEOIndexing: user.allowSEOIndexing,
     receiveMonthlyDigestEmail: user.receiveMonthlyDigestEmail,
     requiresBookerEmailVerification: user.requiresBookerEmailVerification,
+    lastActiveAt: userActivity?.lastActiveAt ?? null,
+    creationSource: userActivity?.creationSource ?? null,
+    locked: userActivity?.locked ?? false,
+    isPlatformManaged: userActivity?.isPlatformManaged ?? false,
     ...profileData,
     secondaryEmails,
     isPremium: userMetadataPrased?.isPremium,
