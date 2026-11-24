@@ -6,6 +6,7 @@ import { ScheduleRepository } from "@calcom/features/schedules/repositories/Sche
 import hasKeyInMetadata from "@calcom/lib/hasKeyInMetadata";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import { uploadAvatar } from "@calcom/lib/server/avatar";
 import { getTranslation } from "@calcom/i18n/server";
 import { resizeBase64Image } from "@calcom/lib/server/resizeBase64Image";
@@ -24,7 +25,9 @@ import { type TUpdateProfileInputSchema, updateUserMetadataAllowedKeys } from ".
 const getBillingProviderService = async (..._args: unknown[]) => ({
   createCustomer: async (..._a: unknown[]) => null,
   getCustomer: async (..._a: unknown[]) => null,
-  getSubscriptions: async (..._a: unknown[]): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
+  getSubscriptions: async (
+    ..._a: unknown[]
+  ): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
   updateCustomer: async (..._a: unknown[]) => null,
 });
 const updateNewTeamMemberEventTypes = async (..._args: unknown[]) => {};
@@ -389,6 +392,19 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
       await prisma.$transaction(recordsToModifyQueue);
     }
   }
+
+  void sendPendoTrackEvent({
+    event: "Profile updated",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: {
+      updated_field_count: Object.keys(input).length,
+      email_changed: !!hasEmailBeenChanged,
+      username_changed: !!input.username && input.username !== user.username,
+      time_zone_changed: !!input.timeZone && input.timeZone !== user.timeZone,
+      completed_onboarding: input.completedOnboarding ?? false,
+    },
+  });
 
   return {
     ...input,

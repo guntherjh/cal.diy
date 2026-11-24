@@ -17,6 +17,7 @@ import { getTeamIdFromEventType } from "@calcom/lib/getTeamIdFromEventType";
 import { HttpError as HttpCode } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import type { TraceContext } from "@calcom/lib/tracing";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
 import prisma from "@calcom/prisma";
@@ -113,6 +114,23 @@ export async function handlePaymentSuccess(params: {
   });
 
   const [payment, updatedBooking] = await prisma.$transaction([paymentUpdate, bookingUpdate]);
+
+  // Payment providers can redeliver success webhooks, so only report the first transition to paid.
+  if (!booking.paid) {
+    void sendPendoTrackEvent({
+      event: "Booking paid",
+      visitorId: booking.userId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventTypeId,
+        payment_app: appSlug,
+        status: updatedBooking.status,
+        requires_confirmation: requiresConfirmation,
+        price: booking.eventType?.price,
+        currency: booking.eventType?.currency,
+      },
+    });
+  }
 
   const platformClientParams = platformOAuthClient ? getPlatformParams(platformOAuthClient) : undefined;
   const teamId = await getTeamIdFromEventType({

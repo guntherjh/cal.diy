@@ -8,6 +8,7 @@ import getWebhooks from "@calcom/features/webhooks/lib/getWebhooks";
 import type { OOOEntryPayloadType } from "@calcom/features/webhooks/lib/sendPayload";
 import sendPayload from "@calcom/features/webhooks/lib/sendPayload";
 import { getTranslation } from "@calcom/i18n/server";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import { WebhookTriggerEvents } from "@calcom/prisma/enums";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
@@ -392,6 +393,19 @@ export const outOfOfficeCreateOrUpdate = async ({ ctx, input }: TBookingRedirect
       );
     })
   );
+
+  void sendPendoTrackEvent({
+    event: "Out-of-office entry saved",
+    visitorId: ctx.user.id,
+    accountId: ctx.user.organizationId,
+    properties: {
+      is_update: !!input.uuid,
+      created_for_other_user: !!input.forUserId,
+      has_redirect: !!toUserId,
+      has_reason: !!input.reasonId,
+      duration_days: endTimeUtc.diff(startTimeUtc, "day") + 1,
+    },
+  });
 
   return {};
 };

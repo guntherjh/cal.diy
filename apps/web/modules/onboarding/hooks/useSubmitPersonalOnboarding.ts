@@ -9,6 +9,22 @@ import { setShowWelcomeToCalcomModalFlag } from "@calcom/web/modules/shell/hooks
 const ONBOARDING_REDIRECT_KEY = "onBoardingRedirect";
 const ORG_MODAL_STORAGE_KEY = "showNewOrgModal";
 
+type PendoAgent = { track: (event: string, properties?: Record<string, unknown>) => void };
+
+// Module-level so a remount of the onboarding screen can't report the milestone twice in one session.
+let hasTrackedOnboardingCompleted = false;
+
+const trackOnboardingCompleted = (properties: Record<string, unknown>) => {
+  if (hasTrackedOnboardingCompleted || typeof window === "undefined") return;
+  hasTrackedOnboardingCompleted = true;
+  const pendo = (window as Window & { pendo?: PendoAgent }).pendo;
+  try {
+    pendo?.track("Onboarding completed", properties);
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 const DEFAULT_EVENT_TYPES = [
   {
     title: "15min_meeting",
@@ -38,6 +54,7 @@ export const useSubmitPersonalOnboarding = () => {
 
   const mutation = trpc.viewer.me.updateProfile.useMutation({
     onSuccess: async () => {
+      let defaultEventTypesCreated = false;
       try {
         // Create default event types if user has none
         if (eventTypes?.length === 0) {
@@ -51,10 +68,16 @@ export const useSubmitPersonalOnboarding = () => {
               });
             })
           );
+          defaultEventTypesCreated = true;
         }
       } catch (error) {
         console.error(error);
       }
+
+      trackOnboardingCompleted({
+        onboarding_type: "personal",
+        default_event_types_created: defaultEventTypesCreated,
+      });
 
       await utils.viewer.me.get.refetch();
 

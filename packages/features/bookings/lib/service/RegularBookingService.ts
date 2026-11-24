@@ -66,6 +66,7 @@ import { criticalLogger } from "@calcom/lib/logger.server";
 import { getPiiFreeCalendarEvent, getPiiFreeEventType } from "@calcom/lib/piiFreeData";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
 import type { PrismaClient } from "@calcom/prisma";
@@ -2483,6 +2484,23 @@ async function handler(
         safeStringify(webhookError)
       );
     }
+  }
+
+  if (!isDryRun && (booking.status === BookingStatus.ACCEPTED || booking.status === BookingStatus.PENDING)) {
+    const isReschedule = !!(rescheduleUid && originalRescheduledBooking);
+    void sendPendoTrackEvent({
+      event: isReschedule ? "Booking rescheduled" : "Booking created",
+      visitorId: organizerUser.id,
+      accountId: organizerOrganizationId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: eventTypeId,
+        status: booking.status,
+        is_team_event: isTeamEventType,
+        scheduling_type: eventType.schedulingType ?? "none",
+        ...(isReschedule ? { rescheduled_by_organizer: userReschedulingIsOwner } : {}),
+      },
+    });
   }
 
   const evtWithMetadata = {

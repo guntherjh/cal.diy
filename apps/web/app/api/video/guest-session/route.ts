@@ -11,6 +11,7 @@ import { getHostsAndGuests } from "@calcom/features/bookings/lib/getHostsAndGues
 import { BookingRepository } from "@calcom/features/bookings/repositories/BookingRepository";
 import { getCalVideoReference } from "@calcom/features/get-cal-video-reference";
 import { VideoCallGuestRepository } from "@calcom/features/video-call-guest/repositories/VideoCallGuestRepository";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import { validateCsrfToken } from "@calcom/web/lib/validateCsrfToken";
 
@@ -82,6 +83,16 @@ async function handler(req: NextRequest) {
   const guestMeetingPassword = await generateGuestMeetingTokenFromOwnerMeetingToken({
     meetingToken: videoReferencePassword,
     userId: guestSession.id,
+  });
+
+  // Guests have no Cal.diy account, so the join is attributed to the host's account.
+  void sendPendoTrackEvent({
+    event: "Guest joined a meeting",
+    visitorId: booking.user?.id,
+    properties: {
+      booking_id: booking.id,
+      event_type_id: booking.eventType?.id,
+    },
   });
 
   return NextResponse.json({
