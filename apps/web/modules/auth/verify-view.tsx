@@ -199,7 +199,7 @@ export default function Verify({ EMAIL_FROM }: { EMAIL_FROM?: string }) {
         </div>
         <div className="flex items-center gap-2">
           <p className="text-subtle text-base font-normal ">{t("dont_see_email")}</p>
-          <button
+          <button data-novus-id="email-verification-code-resend-email-verification-code"
             className={classNames(
               "font-light",
               secondsLeft > 0 ? "text-muted" : "underline underline-offset-2 hover:font-normal"
