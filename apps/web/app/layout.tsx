@@ -11,6 +11,7 @@ import type React from "react";
 
 import "../styles/globals.css";
 import { AppRouterI18nProvider } from "./AppRouterI18nProvider";
+import { PendoScript } from "./PendoScript";
 import { Providers } from "./providers";
 import { SpeculationRules } from "./SpeculationRules";
 
@@ -120,6 +121,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             --font-cal: ${calFont.style.fontFamily.replace(/\'/g, "")};
           }
         `}</style>
+        <PendoScript nonce={nonce || undefined} />
         {process.env.NODE_ENV === "development" && (
           <Script
             src="//unpkg.com/react-grab/dist/index.global.js"
