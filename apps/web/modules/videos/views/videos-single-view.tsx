@@ -21,11 +21,15 @@ import { CalendarDaysIcon, ChevronRightIcon } from "@coss/ui/icons";
 import type { DailyCall } from "@daily-co/daily-js";
 import DailyIframe from "@daily-co/daily-js";
 import { DailyProvider, useDailyEvent } from "@daily-co/daily-react";
+import { trackPendoEvent } from "@lib/pendoTrack";
 import type { getServerSideProps } from "@lib/video/[uid]/getServerSideProps";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CalVideoPremiumFeatures } from "../cal-video-premium-features";
 
 export type PageProps = inferSSRProps<typeof getServerSideProps>;
+
+// Module scope so that remounts or re-created call frames don't report the same meeting twice in a session.
+const trackedJoinedMeetings = new Set<string>();
 
 export default function JoinCall(props: PageProps) {
   const { t } = useLocale();
@@ -139,7 +143,19 @@ export default function JoinCall(props: PageProps) {
       setDaily(callFrame);
       setIsCallFrameReady(true);
 
-      callFrame?.join();
+      callFrame
+        ?.join()
+        .then(() => {
+          if (!activeMeetingUrl || trackedJoinedMeetings.has(activeMeetingUrl)) return;
+          trackedJoinedMeetings.add(activeMeetingUrl);
+          trackPendoEvent("Video call joined", {
+            joined_as_guest: !!guestCredentials,
+            has_display_name: !!activeUserName,
+          });
+        })
+        .catch((error) => {
+          console.error("Failed to join call:", error);
+        });
     } catch (error) {
       console.error("Failed to create or join call:", error);
     }

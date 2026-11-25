@@ -8,6 +8,7 @@ import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { uploadAvatar } from "@calcom/lib/server/avatar";
 import { getTranslation } from "@calcom/i18n/server";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrackEvent";
 import { resizeBase64Image } from "@calcom/lib/server/resizeBase64Image";
 import slugify from "@calcom/lib/slugify";
 import { validateBookerLayouts } from "@calcom/lib/validateBookerLayouts";
@@ -24,7 +25,9 @@ import { type TUpdateProfileInputSchema, updateUserMetadataAllowedKeys } from ".
 const getBillingProviderService = async (..._args: unknown[]) => ({
   createCustomer: async (..._a: unknown[]) => null,
   getCustomer: async (..._a: unknown[]) => null,
-  getSubscriptions: async (..._a: unknown[]): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
+  getSubscriptions: async (
+    ..._a: unknown[]
+  ): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
   updateCustomer: async (..._a: unknown[]) => null,
 });
 const updateNewTeamMemberEventTypes = async (..._args: unknown[]) => {};
@@ -388,6 +391,32 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
 
       await prisma.$transaction(recordsToModifyQueue);
     }
+  }
+
+  await trackPendoServerEvent({
+    event: "Profile updated",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: {
+      email_changed: !!hasEmailBeenChanged,
+      username_changed: !!data.username,
+      avatar_changed: !!data.avatarUrl,
+      time_zone_changed: !!data.timeZone && user.timeZone !== data.timeZone,
+      locale: updatedUser.locale,
+    },
+  });
+
+  // Only the first save with completedOnboarding counts, so revisiting onboarding doesn't fire it again.
+  if (input.completedOnboarding && !user.completedOnboarding) {
+    await trackPendoServerEvent({
+      event: "Onboarding completed",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: {
+        has_username: !!updatedUser.username,
+        time_zone: user.timeZone,
+      },
+    });
   }
 
   return {

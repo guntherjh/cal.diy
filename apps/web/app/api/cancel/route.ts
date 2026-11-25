@@ -8,6 +8,8 @@ import handleCancelBooking from "@calcom/features/bookings/lib/handleCancelBooki
 import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowError";
 import getIP from "@calcom/lib/getIP";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrackEvent";
+import prisma from "@calcom/prisma";
 import { bookingCancelWithCsrfSchema } from "@calcom/prisma/zod-utils";
 import { validateCsrfToken } from "@calcom/web/lib/validateCsrfToken";
 
@@ -61,6 +63,28 @@ async function handler(req: NextRequest) {
   //     userId: session?.user?.id || -1,
   //   },
   // });
+
+  if (result.success) {
+    // Guests cancel without a session, so their cancellations are attributed to the booking's host.
+    const visitorId =
+      session?.user?.id ??
+      (
+        await prisma.booking.findUnique({
+          where: { uid: bookingData.uid },
+          select: { userId: true },
+        })
+      )?.userId;
+    await trackPendoServerEvent({
+      event: "Booking cancelled",
+      visitorId,
+      properties: {
+        booking_id: result.bookingId ?? null,
+        cancelled_by_guest: !session?.user?.id,
+        only_removed_attendee: !!result.onlyRemovedAttendee,
+        has_reason: !!bookingData.cancellationReason,
+      },
+    });
+  }
 
   const statusCode = result.success ? 200 : 400;
 

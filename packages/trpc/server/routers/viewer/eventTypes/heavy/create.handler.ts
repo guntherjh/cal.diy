@@ -1,6 +1,7 @@
 import { getDefaultLocations } from "@calcom/app-store/_utils/getDefaultLocations";
 import { DailyLocationType } from "@calcom/app-store/constants";
 import { EventTypeRepository } from "@calcom/features/eventtypes/repositories/eventTypeRepository";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrackEvent";
 import type { PrismaClient } from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
 import { MembershipRole, SchedulingType } from "@calcom/prisma/enums";
@@ -12,9 +13,15 @@ import type { TCreateInputSchema } from "./create.schema";
 
 class PermissionCheckService {
   constructor(_prisma?: unknown) {}
-  async checkPermission(..._args: unknown[]) { return true; }
-  async hasPermission(..._args: unknown[]) { return true; }
-  async getTeamIdsWithPermission(..._args: unknown[]): Promise<number[]> { return []; }
+  async checkPermission(..._args: unknown[]) {
+    return true;
+  }
+  async hasPermission(..._args: unknown[]) {
+    return true;
+  }
+  async getTeamIdsWithPermission(..._args: unknown[]): Promise<number[]> {
+    return [];
+  }
 }
 
 type EventTypeLocation = z.infer<typeof eventTypeLocations>[number];
@@ -153,6 +160,17 @@ export const createHandler = async ({ ctx, input }: CreateOptions) => {
     const eventType = await eventTypeRepo.create({
       ...data,
       profileId: profile.id,
+    });
+    await trackPendoServerEvent({
+      event: "Event type created",
+      visitorId: userId,
+      accountId: ctx.user.organizationId,
+      properties: {
+        event_type_id: eventType.id,
+        scheduling_type: schedulingType ?? null,
+        is_team_event: !!teamId,
+        length: eventType.length,
+      },
     });
     return { eventType };
   } catch (e) {

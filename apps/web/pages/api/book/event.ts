@@ -9,6 +9,7 @@ import getIP from "@calcom/lib/getIP";
 import { checkCfTurnstileToken } from "@calcom/lib/server/checkCfTurnstileToken";
 import { defaultResponder } from "@calcom/lib/server/defaultResponder";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrackEvent";
 import type { TraceContext } from "@calcom/lib/tracing";
 import { prisma } from "@calcom/prisma";
 import { CreationSource } from "@calcom/prisma/enums";
@@ -56,6 +57,23 @@ async function handler(req: NextApiRequest & { userId?: number; traceContext: Tr
       traceContext: req.traceContext,
     },
   });
+
+  // Spam-blocked requests get a decoy booking with id 0 that is never stored, so they're skipped.
+  if (!booking.isDryRun && booking.id) {
+    // Bookers are often anonymous, so the booking is attributed to its host.
+    await trackPendoServerEvent({
+      event: "Booking created",
+      visitorId: booking.userId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventTypeId,
+        booking_status: booking.status,
+        is_reschedule: !!req.body.rescheduleUid,
+        payment_required: !!booking.paymentRequired,
+        booker_logged_in: !!session?.user?.id,
+      },
+    });
+  }
 
   return booking;
 }

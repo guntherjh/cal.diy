@@ -1,4 +1,5 @@
 import { DEFAULT_SCHEDULE, getAvailabilityFromSchedule } from "@calcom/lib/availability";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrackEvent";
 import { prisma } from "@calcom/prisma";
 import type { Prisma } from "@calcom/prisma/client";
 
@@ -72,6 +73,17 @@ export const createHandler = async ({ input, ctx }: CreateOptions) => {
       },
     });
   }
+
+  await trackPendoServerEvent({
+    event: "Schedule created",
+    visitorId: user.id,
+    properties: {
+      schedule_id: schedule.id,
+      is_default: !user.defaultScheduleId,
+      linked_to_event_type: !!input.eventTypeId,
+      uses_default_hours: !input.schedule,
+    },
+  });
 
   return { schedule };
 };

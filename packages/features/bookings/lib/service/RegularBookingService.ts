@@ -66,6 +66,7 @@ import { criticalLogger } from "@calcom/lib/logger.server";
 import { getPiiFreeCalendarEvent, getPiiFreeEventType } from "@calcom/lib/piiFreeData";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { trackPendoServerEvent } from "@calcom/lib/server/pendoTrackEvent";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
 import type { PrismaClient } from "@calcom/prisma";
@@ -2641,6 +2642,17 @@ export class RegularBookingService implements IBookingService {
           await bookingEventHandler.onBookingRescheduled({
             payload: bookingRescheduledPayload,
           });
+          if (!isDryRun) {
+            await trackPendoServerEvent({
+              event: "Booking rescheduled",
+              visitorId: booking.userId ?? organizerUser.id,
+              properties: {
+                booking_id: booking.id,
+                booking_status: booking.status,
+                host_changed: originalRescheduledBooking.userId !== booking.userId,
+              },
+            });
+          }
         } else {
           await bookingEventHandler.onBookingCreated({
             payload: bookingCreatedPayload,
