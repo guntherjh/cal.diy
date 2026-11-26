@@ -1,5 +1,6 @@
 import { EventTypeRepository } from "@calcom/features/eventtypes/repositories/eventTypeRepository";
 import { generateHashedLink } from "@calcom/lib/generateHashedLink";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrackEvent";
 import { CalVideoSettingsRepository } from "@calcom/features/calVideoSettings/repositories/CalVideoSettingsRepository";
 import { prisma } from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
@@ -218,19 +219,30 @@ export const duplicateHandler = async ({ ctx, input }: DuplicateOptions) => {
       });
     }
 
+    await trackPendoEvent({
+      event: "Event type duplicated",
+      visitorId: ctx.user.id,
+      accountId: ctx.user.organizationId,
+      properties: {
+        original_event_type_id: originalEventTypeId,
+        event_type_id: newEventType.id,
+        is_team_event: Boolean(newEventType.teamId),
+        length_minutes: newEventType.length,
+      },
+    });
+
     return {
       eventType: newEventType,
     };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      
       if (Array.isArray(error.meta?.target) && error.meta?.target.includes("slug")) {
         throw new TRPCError({
           code: "CONFLICT",
           message: "duplicate_event_slug_conflict",
         });
       }
-      
+
       throw new TRPCError({
         code: "CONFLICT",
         message: "Unique constraint violation while creating a duplicate event.",

@@ -8,6 +8,7 @@ import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { uploadAvatar } from "@calcom/lib/server/avatar";
 import { getTranslation } from "@calcom/i18n/server";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrackEvent";
 import { resizeBase64Image } from "@calcom/lib/server/resizeBase64Image";
 import slugify from "@calcom/lib/slugify";
 import { validateBookerLayouts } from "@calcom/lib/validateBookerLayouts";
@@ -24,7 +25,9 @@ import { type TUpdateProfileInputSchema, updateUserMetadataAllowedKeys } from ".
 const getBillingProviderService = async (..._args: unknown[]) => ({
   createCustomer: async (..._a: unknown[]) => null,
   getCustomer: async (..._a: unknown[]) => null,
-  getSubscriptions: async (..._a: unknown[]): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
+  getSubscriptions: async (
+    ..._a: unknown[]
+  ): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
   updateCustomer: async (..._a: unknown[]) => null,
 });
 const updateNewTeamMemberEventTypes = async (..._args: unknown[]) => {};
@@ -388,6 +391,34 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
 
       await prisma.$transaction(recordsToModifyQueue);
     }
+  }
+
+  await trackPendoEvent({
+    event: "Profile updated",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: {
+      updated_field_count: Object.keys(input).length,
+      email_changed: Boolean(hasEmailBeenChanged),
+      username_changed: Boolean(data.username),
+      time_zone_changed: Boolean(input.timeZone) && user.timeZone !== input.timeZone,
+      avatar_changed: Boolean(data.avatarUrl),
+      locale: updatedUser.locale,
+    },
+  });
+
+  // Gate on the stored flag so re-submitting the final onboarding step doesn't count as a second completion.
+  if (input.completedOnboarding && !user.completedOnboarding) {
+    await trackPendoEvent({
+      event: "Onboarding completed",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: {
+        time_zone: input.timeZone ?? user.timeZone,
+        locale: updatedUser.locale,
+        has_avatar: Boolean(updatedUser.avatarUrl),
+      },
+    });
   }
 
   return {

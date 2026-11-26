@@ -4,6 +4,7 @@ import handleCancelBooking from "@calcom/features/bookings/lib/handleCancelBooki
 import { BookingRepository } from "@calcom/features/bookings/repositories/BookingRepository";
 import { BookingAccessService } from "@calcom/features/bookings/services/BookingAccessService";
 import logger from "@calcom/lib/logger";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrackEvent";
 import prisma from "@calcom/prisma";
 import { BookingStatus } from "@calcom/prisma/enums";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
@@ -91,7 +92,6 @@ export const reportBookingHandler = async ({ ctx, input }: ReportBookingOptions)
           ...(seatReferenceUid ? { seatReferenceUid } : {}),
         },
         userId: user.id,
-
       });
       didCancel = true;
     } catch (error) {
@@ -119,6 +119,22 @@ export const reportBookingHandler = async ({ ctx, input }: ReportBookingOptions)
   }
 
   const reportedBooking = { uid: reportedBookingUids[0] };
+
+  if (createdCount > 0) {
+    await trackPendoEvent({
+      event: "Booking reported",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: {
+        booking_id: booking.id,
+        reason,
+        reported_count: createdCount,
+        is_recurring: Boolean(booking.recurringEventId),
+        cancellation_attempted: cancellationAttempted,
+        cancelled: didCancel,
+      },
+    });
+  }
 
   const isRecurring = Boolean(booking.recurringEventId) && createdCount > 1;
   const baseMessage = isRecurring ? `${createdCount} recurring bookings reported` : "Booking reported";

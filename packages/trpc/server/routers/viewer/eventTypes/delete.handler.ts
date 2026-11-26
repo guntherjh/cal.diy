@@ -1,3 +1,4 @@
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrackEvent";
 import { prisma } from "@calcom/prisma";
 
 import type { TrpcSessionUser } from "../../../types";
@@ -10,7 +11,7 @@ type DeleteOptions = {
   input: TDeleteInputSchema;
 };
 
-export const deleteHandler = async ({ ctx: _ctx, input }: DeleteOptions) => {
+export const deleteHandler = async ({ ctx, input }: DeleteOptions) => {
   const { id } = input;
 
   await prisma.eventTypeCustomInput.deleteMany({
@@ -23,6 +24,13 @@ export const deleteHandler = async ({ ctx: _ctx, input }: DeleteOptions) => {
     where: {
       id,
     },
+  });
+
+  await trackPendoEvent({
+    event: "Event type deleted",
+    visitorId: ctx.user.id,
+    accountId: ctx.user.organizationId,
+    properties: { event_type_id: id },
   });
 
   return {

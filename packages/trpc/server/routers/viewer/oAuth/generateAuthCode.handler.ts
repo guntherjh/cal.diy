@@ -1,6 +1,7 @@
 import { getOAuthService } from "@calcom/features/oauth/di/OAuthService.container";
 import { OAuthErrorReason, OAUTH_ERROR_REASONS } from "@calcom/features/oauth/services/OAuthService";
 import { ErrorWithCode } from "@calcom/lib/errors";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrackEvent";
 import { getHttpStatusCode } from "@calcom/lib/server/getServerErrorFromUnknown";
 import type { AccessScope } from "@calcom/prisma/enums";
 import { httpStatusToTrpcCode } from "@calcom/trpc/server/lib/toTRPCError";
@@ -33,6 +34,19 @@ export const generateAuthCodeHandler = async ({ ctx, input }: AddClientOptions) 
       codeChallenge,
       codeChallengeMethod
     );
+
+    await trackPendoEvent({
+      event: "OAuth access granted",
+      visitorId: ctx.user.id,
+      accountId: ctx.user.organizationId,
+      properties: {
+        client_id: clientId,
+        scope_count: scopes.length,
+        team_authorization: Boolean(teamSlug),
+        pkce_used: Boolean(codeChallenge),
+      },
+    });
+
     return { client, authorizationCode: authorizationCode, redirectUrl: redirectUrl };
   } catch (error) {
     if (error instanceof ErrorWithCode) {

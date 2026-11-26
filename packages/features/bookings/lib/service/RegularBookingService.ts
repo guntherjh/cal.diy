@@ -66,6 +66,7 @@ import { criticalLogger } from "@calcom/lib/logger.server";
 import { getPiiFreeCalendarEvent, getPiiFreeEventType } from "@calcom/lib/piiFreeData";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrackEvent";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
 import type { PrismaClient } from "@calcom/prisma";
@@ -2439,6 +2440,25 @@ async function handler(
       isDryRun,
       traceContext,
     });
+
+    if (!isDryRun) {
+      // Bookers are often signed out, so the event is attributed to the organizer whose account owns the booking.
+      await trackPendoEvent({
+        event: rescheduleUid ? "Booking rescheduled" : "Booking created",
+        visitorId: organizerUser.id,
+        accountId: organizerOrganizationId,
+        properties: {
+          booking_id: booking.id,
+          event_type_id: eventTypeId,
+          scheduling_type: eventType.schedulingType ?? "none",
+          is_team_event: Boolean(eventType.team),
+          is_recurring: Boolean(input.bookingData.allRecurringDates),
+          length_minutes: eventTypeInfo.length ?? null,
+          booked_by_signed_in_user: Boolean(userId),
+          is_platform_booking: isPlatformBooking,
+        },
+      });
+    }
   }
 
   if (!booking) throw new HttpError({ statusCode: 400, message: "Booking failed" });

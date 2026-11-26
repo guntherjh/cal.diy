@@ -1,4 +1,5 @@
 import { DEFAULT_SCHEDULE, getAvailabilityFromSchedule } from "@calcom/lib/availability";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrackEvent";
 import { prisma } from "@calcom/prisma";
 import type { Prisma } from "@calcom/prisma/client";
 
@@ -9,7 +10,8 @@ import type { TCreateInputSchema } from "./create.schema";
 
 type CreateOptions = {
   ctx: {
-    user: Pick<NonNullable<TrpcSessionUser>, "id" | "timeZone" | "defaultScheduleId">;
+    user: Pick<NonNullable<TrpcSessionUser>, "id" | "timeZone" | "defaultScheduleId"> &
+      Partial<Pick<NonNullable<TrpcSessionUser>, "organizationId">>;
   };
   input: TCreateInputSchema;
 };
@@ -72,6 +74,18 @@ export const createHandler = async ({ input, ctx }: CreateOptions) => {
       },
     });
   }
+
+  await trackPendoEvent({
+    event: "Schedule created",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: {
+      schedule_id: schedule.id,
+      is_default: !user.defaultScheduleId,
+      uses_default_availability: !input.schedule,
+      linked_to_event_type: Boolean(input.eventTypeId),
+    },
+  });
 
   return { schedule };
 };

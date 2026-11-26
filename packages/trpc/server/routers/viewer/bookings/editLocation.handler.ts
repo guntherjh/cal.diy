@@ -11,6 +11,7 @@ import { buildCalEventFromBooking } from "@calcom/lib/buildCalEventFromBooking";
 import { getVideoCallUrlFromCalEvent } from "@calcom/lib/CalEventParser";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrackEvent";
 import { getTranslation } from "@calcom/i18n/server";
 import { prisma } from "@calcom/prisma";
 import type { Booking, BookingReference } from "@calcom/prisma/client";
@@ -314,6 +315,20 @@ export async function editLocationHandler({ ctx, input, actionSource }: EditLoca
   } catch (error) {
     logger.error("Error sending LocationChangeEmails", safeStringify(error));
   }
+
+  await trackPendoEvent({
+    event: "Booking location updated",
+    visitorId: loggedInUser.id,
+    accountId: organizationId,
+    properties: {
+      booking_id: booking.id,
+      event_type_id: booking.eventTypeId,
+      // Free-form locations can hold addresses or phone numbers, so only app integration types are sent.
+      location_type: newLocation.startsWith("integrations:") ? newLocation : "other",
+      location_changed: oldLocation !== updatedLocation,
+      action_source: actionSource,
+    },
+  });
 
   return { message: "Location updated" };
 }

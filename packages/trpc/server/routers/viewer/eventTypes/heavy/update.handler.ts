@@ -10,6 +10,7 @@ import tasker from "@calcom/features/tasker";
 import { getTranslation } from "@calcom/i18n/server";
 import { validateIntervalLimitOrder } from "@calcom/lib/intervalLimits/validateIntervalLimitOrder";
 import logger from "@calcom/lib/logger";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrackEvent";
 import { validateBookerLayouts } from "@calcom/lib/validateBookerLayouts";
 import type { PrismaClient } from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
@@ -713,6 +714,17 @@ export const updateHandler = async ({ ctx, input }: UpdateOptions) => {
     }
     throw e;
   }
+
+  await trackPendoEvent({
+    event: "Event type updated",
+    visitorId: ctx.user.id,
+    accountId: ctx.user.organizationId,
+    properties: {
+      event_type_id: id,
+      scheduling_type: updatedEventType.schedulingType ?? "none",
+      updated_field_count: Object.values(data).filter((value) => value !== undefined).length,
+    },
+  });
 
   if (hostLocationDeletions.length > 0) {
     await ctx.prisma.hostLocation.deleteMany({
