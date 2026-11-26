@@ -9,6 +9,7 @@ import getIP from "@calcom/lib/getIP";
 import { checkCfTurnstileToken } from "@calcom/lib/server/checkCfTurnstileToken";
 import { defaultResponder } from "@calcom/lib/server/defaultResponder";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import type { TraceContext } from "@calcom/lib/tracing";
 import { prisma } from "@calcom/prisma";
 import { CreationSource } from "@calcom/prisma/enums";
@@ -56,6 +57,22 @@ async function handler(req: NextApiRequest & { userId?: number; traceContext: Tr
       traceContext: req.traceContext,
     },
   });
+
+  // Reschedules are reported as "Booking rescheduled" by the booking service, and spam-blocked
+  // bookings come back with id 0, so neither counts as a new booking.
+  if (booking.id && !booking.isDryRun && !booking.previousBooking) {
+    await trackPendoEvent({
+      event: "Booking created",
+      visitorId: booking.userId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventTypeId,
+        booking_status: booking.status,
+        payment_required: !!booking.paymentRequired,
+        is_logged_in_booker: !!session?.user?.id,
+      },
+    });
+  }
 
   return booking;
 }

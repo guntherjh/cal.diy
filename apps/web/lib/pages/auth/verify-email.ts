@@ -1,6 +1,7 @@
 import dayjs from "@calcom/dayjs";
 import { OnboardingPathService } from "@calcom/features/onboarding/lib/onboarding-path.service";
 import { IS_STRIPE_ENABLED, WEBAPP_URL } from "@calcom/lib/constants";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import { CreationSource, MembershipRole } from "@calcom/prisma/enums";
 import { userMetadata } from "@calcom/prisma/zod-utils";
@@ -15,7 +16,10 @@ const USER_ALREADY_EXISTING_MESSAGE = "A User already exists with this email";
 
 // TODO: To be unit tested
 export async function moveUserToMatchingOrg({ email }: { email: string }) {
-  const organizationRepository = { findUniqueNonPlatformOrgsByMatchingAutoAcceptEmail: async (_args: { email: string }) => null as { id: number } | null };
+  const organizationRepository = {
+    findUniqueNonPlatformOrgsByMatchingAutoAcceptEmail: async (_args: { email: string }) =>
+      null as { id: number } | null,
+  };
   const org = await organizationRepository.findUniqueNonPlatformOrgsByMatchingAutoAcceptEmail({ email });
 
   if (!org) {
@@ -114,11 +118,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
     });
 
     if (IS_STRIPE_ENABLED && userMetadataParsed.stripeCustomerId) {
-        const billingService = { updateCustomer: async (_args: { customerId: string; email: string }) => {} };
-        await billingService.updateCustomer({
-          customerId: userMetadataParsed.stripeCustomerId,
-          email: updatedEmail,
-        });
+      const billingService = { updateCustomer: async (_args: { customerId: string; email: string }) => {} };
+      await billingService.updateCustomer({
+        customerId: userMetadataParsed.stripeCustomerId,
+        email: updatedEmail,
+      });
     }
 
     // The user is trying to update the email to an already existing unverified secondary email of his
@@ -151,6 +155,18 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       emailVerified: new Date(),
     },
   });
+
+  // Verification links can be opened more than once, so only report the first verification.
+  if (!user.emailVerified) {
+    await trackPendoEvent({
+      event: "Email verified",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: {
+        completed_onboarding: user.completedOnboarding,
+      },
+    });
+  }
 
   const hasCompletedOnboarding = user.completedOnboarding;
 

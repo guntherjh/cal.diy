@@ -7,6 +7,7 @@ import getIP from "@calcom/lib/getIP";
 import { checkCfTurnstileToken } from "@calcom/lib/server/checkCfTurnstileToken";
 import { defaultResponder } from "@calcom/lib/server/defaultResponder";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import type { NextApiRequest } from "next";
 
 // @TODO: Didn't look at the contents of this function in order to not break old booking page.
@@ -57,6 +58,22 @@ async function handler(req: NextApiRequest & RequestMeta) {
     },
     creationSource: "WEBAPP",
   });
+
+  const [firstBooking] = createdBookings;
+  if (firstBooking?.id && !firstBooking.isDryRun) {
+    await trackPendoEvent({
+      event: "Recurring booking series created",
+      visitorId: firstBooking.userId,
+      properties: {
+        booking_id: firstBooking.id,
+        event_type_id: firstBooking.eventTypeId,
+        occurrence_count: createdBookings.length,
+        booking_status: firstBooking.status,
+        payment_required: !!firstBooking.paymentRequired,
+        is_logged_in_booker: !!session?.user?.id,
+      },
+    });
+  }
 
   return createdBookings;
 }

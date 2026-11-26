@@ -15,6 +15,7 @@ import { extractBaseEmail } from "@calcom/lib/extract-base-email";
 import { getBlacklistedGuestEmails } from "@calcom/lib/getBlacklistedGuestEmails";
 import { parseRecurringEvent } from "@calcom/lib/isRecurringEvent";
 import logger from "@calcom/lib/logger";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import type { BookingResponses } from "@calcom/prisma/zod-utils";
 import { eventTypeBookingFields } from "@calcom/prisma/zod-utils";
@@ -88,6 +89,19 @@ export const addGuestsHandler = async ({
 
   if (emailsEnabled) {
     await sendGuestNotifications(evt, booking, uniqueGuestEmails);
+  }
+
+  if (uniqueGuests.length > 0) {
+    await trackPendoEvent({
+      event: "Guests added to booking",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: {
+        booking_id: bookingId,
+        guest_count: uniqueGuests.length,
+        emails_sent: emailsEnabled,
+      },
+    });
   }
 
   return { message: "Guests added" };

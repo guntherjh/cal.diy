@@ -12,6 +12,7 @@ import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
 import { checkCfTurnstileToken } from "@calcom/lib/server/checkCfTurnstileToken";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import { signupSchema } from "@calcom/prisma/zod-utils";
 
@@ -33,6 +34,29 @@ async function ensureSignupIsEnabled(body: Record<string, string>) {
       statusCode: 403,
       message: "Signup is disabled",
     });
+  }
+}
+
+// The signup handlers only return a response, so the new user is looked up by its unique email.
+async function trackAccountCreated(body: Record<string, string>): Promise<void> {
+  if (!body.email) return;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email: body.email.toLowerCase() },
+      select: { id: true, organizationId: true },
+    });
+    if (!user) return;
+    await trackPendoEvent({
+      event: "Account created",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: {
+        has_team_invite: !!body.token,
+        is_premium_username_flow: IS_PREMIUM_USERNAME_ENABLED,
+      },
+    });
+  } catch (error) {
+    logger.warn("Unable to track account creation in Pendo", error);
   }
 }
 
@@ -62,11 +86,15 @@ async function handler(req: NextRequest) {
      * TODO: (SEAN) - Extract a lot of the logic from calcomHandler into a separate file and import it into both handlers.
      * @zomars: We need to be able to test this with E2E. They way it's done RN it will never run on CI.
      */
-    if (IS_PREMIUM_USERNAME_ENABLED) {
-      return await calcomSignupHandler(body, query);
+    const response = IS_PREMIUM_USERNAME_ENABLED
+      ? await calcomSignupHandler(body, query)
+      : await selfHostedSignupHandler(body);
+
+    if (response.status === 201) {
+      await trackAccountCreated(body);
     }
 
-    return await selfHostedSignupHandler(body);
+    return response;
   } catch (e) {
     if (e instanceof HttpError) {
       return NextResponse.json({ message: e.message }, { status: e.statusCode });
