@@ -5,6 +5,7 @@ import React from "react";
 import CacheProvider from "react-inlinesvg/provider";
 
 import { WebPushProvider } from "@calcom/web/modules/notifications/components/WebPushContext";
+import { PendoIdentify } from "@calcom/web/modules/pendo/PendoIdentify";
 import { trpc } from "@calcom/trpc/react";
 
 import type { AppProps } from "@lib/app-providers";
@@ -16,6 +17,7 @@ function MyApp(props: AppProps) {
 
   return (
     <SessionProvider session={pageProps.session ?? undefined}>
+      <PendoIdentify />
       <WebPushProvider>
         {/* @ts-expect-error react-inlinesvg/provider is incompatible with @types/react@18.0.26. Remove when these types are compatible. */}
         <CacheProvider>

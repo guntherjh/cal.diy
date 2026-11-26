@@ -23,6 +23,7 @@ import {
   SettingsIcon,
   UserIcon,
 } from "@coss/ui/icons";
+import { clearPendoSession } from "@lib/pendo/pendo";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import type { MouseEvent } from "react";
@@ -189,7 +190,8 @@ export function UserDropdown({ small }: UserDropdownProps) {
 
           <MenuItem
             variant="destructive"
-            onClick={() => {
+            onClick={(): void => {
+              clearPendoSession();
               signOut({ callbackUrl: "/auth/logout" });
             }}>
             <LogOutIcon />

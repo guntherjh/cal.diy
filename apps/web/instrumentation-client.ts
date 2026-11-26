@@ -3,6 +3,9 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 import * as Sentry from "@sentry/nextjs";
 import { initBotId } from "botid/client/core";
+import { initializePendo } from "./lib/pendo/pendo";
+
+initializePendo();
 
 if (process.env.NODE_ENV === "production") {
   Sentry.init({
