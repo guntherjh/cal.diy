@@ -3,6 +3,7 @@ import { useLocale } from "@calcom/lib/hooks/useLocale";
 import useMeQuery from "@calcom/trpc/react/hooks/useMeQuery";
 import classNames from "@calcom/ui/classNames";
 import { Avatar } from "@calcom/ui/components/avatar";
+import { clearPendoSession } from "@calcom/web/modules/pendo/pendo";
 import {
   Menu,
   MenuItem,
@@ -190,6 +191,7 @@ export function UserDropdown({ small }: UserDropdownProps) {
           <MenuItem
             variant="destructive"
             onClick={() => {
+              clearPendoSession();
               signOut({ callbackUrl: "/auth/logout" });
             }}>
             <LogOutIcon />
