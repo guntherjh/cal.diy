@@ -10,6 +10,7 @@ import { Toaster } from "sonner";
 import { useFormbricks } from "@calcom/web/modules/formbricks/hooks/useFormbricks";
 import { useRedirectToLoginIfUnauthenticated } from "@calcom/web/modules/auth/hooks/useRedirectToLoginIfUnauthenticated";
 import { useRedirectToOnboardingIfNeeded } from "@calcom/web/modules/auth/hooks/useRedirectToOnboardingIfNeeded";
+import { usePendo } from "@calcom/web/modules/pendo/hooks/usePendo";
 
 import TimezoneChangeDialog from "@calcom/web/modules/settings/components/TimezoneChangeDialog";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
@@ -31,6 +32,7 @@ const Layout = (props: LayoutProps) => {
   const { banners, bannersHeight } = useBanners();
 
   useFormbricks();
+  usePendo();
 
   return (
     <>

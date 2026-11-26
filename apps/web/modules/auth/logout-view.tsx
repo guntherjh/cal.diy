@@ -16,11 +16,24 @@ export type PageProps = {
   query: ParsedUrlQuery;
 };
 
+const clearPendoSession = (): void => {
+  if (typeof pendo === "undefined") return;
+  if (typeof pendo.clearSession === "function") {
+    pendo.clearSession();
+    return;
+  }
+  // clearSession isn't part of the install stub, so wait for the agent script to finish loading.
+  window.addEventListener("load", () => pendo.clearSession?.(), { once: true });
+};
+
 export function Logout(props: PageProps) {
   const [btnLoading, setBtnLoading] = useState<boolean>(false);
   const { status } = useSession();
   if (status === "authenticated") signOut({ redirect: false });
   const router = useRouter();
+  useEffect(() => {
+    clearPendoSession();
+  }, []);
   useEffect(() => {
     if (props.query?.survey === "true") {
       router.push(`${WEBSITE_URL}/cancellation`);

@@ -11,6 +11,7 @@ import type React from "react";
 
 import "../styles/globals.css";
 import { AppRouterI18nProvider } from "./AppRouterI18nProvider";
+import { PendoScript } from "./PendoScript";
 import { Providers } from "./providers";
 import { SpeculationRules } from "./SpeculationRules";
 
@@ -114,6 +115,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
       data-nextjs-router="app">
       <head nonce={nonce}>
+        <PendoScript nonce={nonce} />
         <style>{`
           :root {
             --font-sans: ${interFont.style.fontFamily.replace(/\'/g, "")}, system-ui;
@@ -151,13 +153,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <IconSprites />
         <SpeculationRules
           // URLs In Navigation
-          prerenderPathsOnHover={[
-            "/event-types",
-            "/availability",
-            "/bookings/upcoming",
-            "/teams",
-            "/apps",
-          ]}
+          prerenderPathsOnHover={["/event-types", "/availability", "/bookings/upcoming", "/teams", "/apps"]}
         />
 
         <Providers isEmbed={isEmbed} nonce={nonce} country={country}>
