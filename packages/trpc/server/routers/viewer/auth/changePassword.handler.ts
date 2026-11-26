@@ -1,6 +1,7 @@
 import { validPassword } from "@calcom/features/auth/lib/validPassword";
 import { verifyPassword } from "@calcom/features/auth/lib/verifyPassword";
 import { hashPassword } from "@calcom/lib/auth/hashPassword";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import { IdentityProvider } from "@calcom/prisma/enums";
 
@@ -70,5 +71,12 @@ export const changePasswordHandler = async ({ input, ctx }: ChangePasswordOption
     update: {
       hash: hashedPassword,
     },
+  });
+
+  await trackPendoEvent({
+    event: "Password changed",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: { identity_provider: user.identityProvider },
   });
 };

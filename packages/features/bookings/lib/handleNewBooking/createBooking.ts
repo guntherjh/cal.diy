@@ -1,6 +1,7 @@
 import dayjs from "@calcom/dayjs";
 import { isPrismaObjOrUndefined } from "@calcom/lib/isPrismaObj";
 import { withReporting } from "@calcom/lib/sentryWrapper";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
 import type { CreationSource } from "@calcom/prisma/enums";
@@ -83,12 +84,32 @@ const _createBooking = async ({
     tracking,
   });
 
-  return await saveBooking(
+  const booking = await saveBooking(
     bookingAndAssociatedData,
     originalRescheduledBooking,
     eventType.paymentAppData,
     eventType.organizerUser
   );
+
+  // Reschedules also go through createBooking but are tracked separately as "Booking rescheduled"
+  if (!originalRescheduledBooking) {
+    await trackPendoEvent({
+      event: "Booking created",
+      visitorId: eventType.organizerUser.id,
+      accountId: evt.organizationId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: eventType.id || null,
+        status: booking.status,
+        is_recurring: !!reqBody.recurringEventId,
+        requires_payment:
+          typeof eventType.paymentAppData.price === "number" && eventType.paymentAppData.price > 0,
+        creation_source: creationSource ?? null,
+      },
+    });
+  }
+
+  return booking;
 };
 
 export const createBooking = withReporting(_createBooking, "createBooking");
