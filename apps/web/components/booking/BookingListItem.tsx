@@ -109,7 +109,7 @@ const ConditionalLink = ({
     };
 
     return (
-      <div
+      <div data-novus-id="bookings-open-booking-details"
         role="button"
         tabIndex={0}
         onClick={onClick}
