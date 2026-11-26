@@ -47,7 +47,7 @@ export default function LockedSMSView() {
             onChange={(event) => setUsername(event.target.value)}
             value={username}
           />
-          <Button
+          <Button data-novus-id="locked-sms-lock-sms-for-a-user-or-team"
             type="submit"
             className="ml-2 mt-5"
             onClick={() => {

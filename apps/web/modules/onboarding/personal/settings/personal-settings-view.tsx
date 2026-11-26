@@ -127,7 +127,7 @@ export const PersonalSettingsView = ({
                   {t("back")}
                 </Button>
               )}
-              <Button
+              <Button data-novus-id="onboarding-personal-settings-save-personal-onboarding-settings"
                 type="submit"
                 form="personal-settings-form"
                 color="primary"

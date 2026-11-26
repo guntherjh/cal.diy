@@ -309,7 +309,7 @@ export default function Login({
               {errorMessage && <Alert severity="error" title={errorMessage} className="mt-4" />}
 
               {/* Submit Button */}
-              <Button
+              <Button data-novus-id="log-in-log-in-with-email-and-password"
                 type="submit"
                 variant="outline"
                 className="mt-8 w-full"

@@ -110,7 +110,7 @@ export function UsersTable() {
 
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <TextField data-novus-id="users-search-users"
         placeholder="username or email"
         label={t("search")}
         onChange={(e) => setSearchTerm(e.target.value)}

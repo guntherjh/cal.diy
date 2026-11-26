@@ -492,7 +492,7 @@ export function LogInOverlay(props: LogInOverlayProps) {
               />
             )}
 
-            <Button
+            <Button data-novus-id="cal-video-meeting-join-a-cal-video-meeting-as-a-guest"
               color="primary"
               className="w-full justify-center"
               onClick={handleContinueAsGuest}

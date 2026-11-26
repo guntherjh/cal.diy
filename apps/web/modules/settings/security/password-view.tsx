@@ -210,7 +210,7 @@ const PasswordView = ({ user }: PasswordViewProps) => {
             </p>
           </div>
           <SectionBottomActions align="end">
-            <Button
+            <Button data-novus-id="password-change-password"
               color="primary"
               type="submit"
               loading={passwordMutation.isPending}

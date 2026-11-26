@@ -147,7 +147,7 @@ function PasswordResetForm({
       </div>
 
       <div>
-        <Button
+        <Button data-novus-id="reset-password-set-a-new-password"
           loading={loading}
           color="primary"
           type="submit"

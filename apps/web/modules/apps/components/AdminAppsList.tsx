@@ -257,7 +257,7 @@ const EditKeysModal: FC<{
         )}
         <DialogFooter showDivider className="mt-8">
           <DialogClose onClick={handleModelClose} />
-          <Button form="edit-keys" type="submit">
+          <Button data-novus-id="admin-apps-save-app-api-keys" form="edit-keys" type="submit">
             {t("save")}
           </Button>
         </DialogFooter>
