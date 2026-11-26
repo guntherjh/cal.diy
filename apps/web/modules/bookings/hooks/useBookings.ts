@@ -22,6 +22,33 @@ import { useRouter } from "next/navigation";
 import { useRef } from "react";
 import { shallow } from "zustand/shallow";
 
+declare global {
+  interface Window {
+    pendo?: {
+      track: (
+        event: string,
+        properties?: Record<string, string | number | boolean | null | undefined>
+      ) => void;
+    };
+  }
+}
+
+// Module-level so a remount of the booker can't report the same reschedule twice
+const trackedRescheduledBookingUids: Set<string> = new Set<string>();
+
+const trackBookingRescheduled = (
+  uid: string | undefined,
+  properties: Record<string, string | number | boolean | null | undefined>
+): void => {
+  if (!uid || trackedRescheduledBookingUids.has(uid)) return;
+  trackedRescheduledBookingUids.add(uid);
+  try {
+    window.pendo?.track("Booking rescheduled", properties);
+  } catch (error) {
+    console.error("Pendo track failed", error);
+  }
+};
+
 export interface IUseBookings {
   event: {
     data?:
@@ -206,6 +233,14 @@ export const useBookings = ({ event, hashedLink, bookingForm, metadata, isBookin
           },
           confirmed: !(booking.status === BookingStatus.PENDING && event.data?.requiresConfirmation),
         });
+        trackBookingRescheduled(booking.uid, {
+          event_type_id: booking.eventTypeId,
+          status: booking.status,
+          duration: validDuration,
+          is_recurring: false,
+          requires_confirmation: !!event.data?.requiresConfirmation,
+          rescheduled_by_host: !!rescheduledBy,
+        });
         sdkActionManager?.fire(
           "rescheduleBookingSuccessfulV2",
           getRescheduleBookingSuccessfulEventPayload({
@@ -357,6 +392,14 @@ export const useBookings = ({ event, hashedLink, bookingForm, metadata, isBookin
       };
 
       if (isRescheduling) {
+        trackBookingRescheduled(uid, {
+          event_type_id: booking.eventTypeId,
+          status: booking.status,
+          is_recurring: true,
+          occurrences_count: bookings.length,
+          requires_confirmation: !!event.data?.requiresConfirmation,
+          rescheduled_by_host: !!rescheduledBy,
+        });
         // NOTE: It is recommended to define the event payload in the argument itself to provide a better type safety.
         sdkActionManager?.fire("rescheduleBookingSuccessfulV2", {
           ...getRescheduleBookingSuccessfulEventPayload({

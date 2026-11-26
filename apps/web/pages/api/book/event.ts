@@ -9,6 +9,7 @@ import getIP from "@calcom/lib/getIP";
 import { checkCfTurnstileToken } from "@calcom/lib/server/checkCfTurnstileToken";
 import { defaultResponder } from "@calcom/lib/server/defaultResponder";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import type { TraceContext } from "@calcom/lib/tracing";
 import { prisma } from "@calcom/prisma";
 import { CreationSource } from "@calcom/prisma/enums";
@@ -56,6 +57,25 @@ async function handler(req: NextApiRequest & { userId?: number; traceContext: Tr
       traceContext: req.traceContext,
     },
   });
+
+  // Reschedules are reported as "Booking rescheduled", and dry runs or decoy bookings aren't real bookings
+  const isNewBooking =
+    !req.body.rescheduleUid && !booking.isDryRun && !("isShortCircuitedBooking" in booking);
+  const visitorId = booking.userId ?? session?.user?.id;
+  if (isNewBooking && visitorId) {
+    void sendPendoTrackEvent({
+      event: "Booking created",
+      visitorId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventTypeId,
+        status: booking.status,
+        booked_by_logged_in_user: !!session?.user?.id,
+        payment_required: !!booking.paymentRequired,
+        is_seated: !!booking.seatReferenceUid,
+      },
+    });
+  }
 
   return booking;
 }

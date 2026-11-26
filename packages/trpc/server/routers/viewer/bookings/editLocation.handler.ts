@@ -7,11 +7,12 @@ import { BookingRepository } from "@calcom/features/bookings/repositories/Bookin
 import { CredentialRepository } from "@calcom/features/credentials/repositories/CredentialRepository";
 import { CredentialAccessService } from "@calcom/features/credentials/services/CredentialAccessService";
 import { UserRepository } from "@calcom/features/users/repositories/UserRepository";
+import { getTranslation } from "@calcom/i18n/server";
 import { buildCalEventFromBooking } from "@calcom/lib/buildCalEventFromBooking";
 import { getVideoCallUrlFromCalEvent } from "@calcom/lib/CalEventParser";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
-import { getTranslation } from "@calcom/i18n/server";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import type { Booking, BookingReference } from "@calcom/prisma/client";
 import type { EventTypeMetadata, userMetadata } from "@calcom/prisma/zod-utils";
@@ -314,6 +315,19 @@ export async function editLocationHandler({ ctx, input, actionSource }: EditLoca
   } catch (error) {
     logger.error("Error sending LocationChangeEmails", safeStringify(error));
   }
+
+  void sendPendoTrackEvent({
+    event: "Booking location changed",
+    visitorId: loggedInUser.id,
+    accountId: organizationId ?? loggedInUser.organizationId,
+    properties: {
+      booking_id: booking.id,
+      event_type_id: booking.eventTypeId,
+      had_previous_location: !!oldLocation,
+      uses_conference_credential: !!conferenceCredentialId,
+      action_source: actionSource,
+    },
+  });
 
   return { message: "Location updated" };
 }

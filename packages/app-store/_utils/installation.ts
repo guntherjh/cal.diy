@@ -1,5 +1,6 @@
 import { CredentialRepository } from "@calcom/features/credentials/repositories/CredentialRepository";
 import { HttpError } from "@calcom/lib/http-error";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import type { Prisma } from "@calcom/prisma/client";
 import type { UserProfile } from "@calcom/types/UserProfile";
@@ -54,5 +55,16 @@ export async function createDefaultInstallation({
   if (!installation) {
     throw new Error(`Unable to create user credential for type ${appType}`);
   }
+  void sendPendoTrackEvent({
+    event: "App installed",
+    visitorId: user.id,
+    accountId: user.profile?.organizationId,
+    properties: {
+      app_slug: slug,
+      app_type: appType,
+      is_team_install: !!teamId,
+      is_paid: !!subscriptionId,
+    },
+  });
   return installation;
 }

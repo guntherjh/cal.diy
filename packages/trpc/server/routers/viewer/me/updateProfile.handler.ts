@@ -3,11 +3,12 @@ import { sendChangeOfEmailVerification } from "@calcom/features/auth/lib/verifyE
 import { FeaturesRepository } from "@calcom/features/flags/features.repository";
 import { checkUsername } from "@calcom/features/profile/lib/checkUsername";
 import { ScheduleRepository } from "@calcom/features/schedules/repositories/ScheduleRepository";
+import { getTranslation } from "@calcom/i18n/server";
 import hasKeyInMetadata from "@calcom/lib/hasKeyInMetadata";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { uploadAvatar } from "@calcom/lib/server/avatar";
-import { getTranslation } from "@calcom/i18n/server";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import { resizeBase64Image } from "@calcom/lib/server/resizeBase64Image";
 import slugify from "@calcom/lib/slugify";
 import { validateBookerLayouts } from "@calcom/lib/validateBookerLayouts";
@@ -24,7 +25,9 @@ import { type TUpdateProfileInputSchema, updateUserMetadataAllowedKeys } from ".
 const getBillingProviderService = async (..._args: unknown[]) => ({
   createCustomer: async (..._a: unknown[]) => null,
   getCustomer: async (..._a: unknown[]) => null,
-  getSubscriptions: async (..._a: unknown[]): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
+  getSubscriptions: async (
+    ..._a: unknown[]
+  ): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
   updateCustomer: async (..._a: unknown[]) => null,
 });
 const updateNewTeamMemberEventTypes = async (..._args: unknown[]) => {};
@@ -388,6 +391,36 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
 
       await prisma.$transaction(recordsToModifyQueue);
     }
+  }
+
+  void sendPendoTrackEvent({
+    event: "Profile updated",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: {
+      updated_fields_count: Object.keys(rest).length,
+      email_changed: !!hasEmailBeenChanged,
+      username_changed: !!data.username,
+      time_zone_changed: !!input.timeZone && input.timeZone !== user.timeZone,
+      locale_changed: !!input.locale && input.locale !== user.locale,
+      avatar_changed: !!input.avatarUrl,
+      secondary_emails_changed: secondaryEmails.length > 0,
+      travel_schedules_changed: !!travelSchedules,
+    },
+  });
+
+  // Gate on the transition so re-saving an already onboarded profile doesn't count again
+  if (input.completedOnboarding && !user.completedOnboarding) {
+    void sendPendoTrackEvent({
+      event: "Onboarding completed",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: {
+        time_zone: input.timeZone ?? user.timeZone,
+        has_avatar: !!updatedUser.avatarUrl,
+        is_premium_username: isPremiumUsername,
+      },
+    });
   }
 
   return {

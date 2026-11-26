@@ -1,6 +1,6 @@
 import { getFeatureRepository } from "@calcom/features/di/containers/FeatureRepository";
 import type { FeatureId } from "@calcom/features/flags/config";
-
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import type { TAdminToggleFeatureFlagSchema } from "./toggleFeatureFlag.schema";
 
 type GetOptions = {
@@ -15,11 +15,22 @@ export const toggleFeatureFlagHandler = async (opts: GetOptions) => {
   const { user } = ctx;
   const { slug, enabled } = input;
   const featureRepository = getFeatureRepository();
-  return featureRepository.update({
+  const result = await featureRepository.update({
     featureId: slug as FeatureId,
     enabled,
     updatedBy: user.id,
   });
+
+  void sendPendoTrackEvent({
+    event: "Feature flag changed",
+    visitorId: user.id,
+    properties: {
+      feature_slug: slug,
+      enabled,
+    },
+  });
+
+  return result;
 };
 
 export default toggleFeatureFlagHandler;

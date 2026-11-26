@@ -3,7 +3,6 @@ import type { LocationObject } from "@calcom/app-store/locations";
 import { getLocationValueForDB } from "@calcom/app-store/locations";
 import { sendDeclinedEmailsAndSMS } from "@calcom/emails/email-manager";
 import { getAllCredentialsIncludeServiceAccountKey } from "@calcom/features/bookings/lib/getAllCredentialsForUsersOnEvent/getAllCredentials";
-import { WEBAPP_URL } from "@calcom/lib/constants";
 import { getAssignmentReasonCategory } from "@calcom/features/bookings/lib/getAssignmentReasonCategory";
 import { getCalEventResponses } from "@calcom/features/bookings/lib/getCalEventResponses";
 import { handleConfirmation } from "@calcom/features/bookings/lib/handleConfirmation";
@@ -16,13 +15,15 @@ import {
 } from "@calcom/features/eventtypes/di/EventTypeService.container";
 import type { GetSubscriberOptions } from "@calcom/features/webhooks/lib/getWebhooks";
 import type { EventPayloadType, EventTypeInfo } from "@calcom/features/webhooks/lib/sendPayload";
+import { getTranslation } from "@calcom/i18n/server";
+import { WEBAPP_URL } from "@calcom/lib/constants";
 import getOrgIdFromMemberOrTeamId from "@calcom/lib/getOrgIdFromMemberOrTeamId";
 import { getTeamIdFromEventType } from "@calcom/lib/getTeamIdFromEventType";
 import { isPrismaObjOrUndefined } from "@calcom/lib/isPrismaObj";
 import { parseRecurringEvent } from "@calcom/lib/isRecurringEvent";
-import { getTranslation } from "@calcom/i18n/server";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import type { TraceContext } from "@calcom/lib/tracing";
 import { prisma } from "@calcom/prisma";
@@ -190,6 +191,20 @@ export const confirmHandler = async ({ ctx, input }: ConfirmOptions) => {
       },
       data: {
         status: BookingStatus.ACCEPTED,
+      },
+    });
+
+    void sendPendoTrackEvent({
+      event: "Booking confirmed or rejected",
+      visitorId: ctx.user.id,
+      properties: {
+        booking_id: bookingId,
+        event_type_id: booking.eventTypeId,
+        status: BookingStatus.ACCEPTED,
+        confirmed: true,
+        is_recurring: !!recurringEventId,
+        awaiting_payment: true,
+        emails_enabled: emailsEnabled,
       },
     });
 
@@ -477,11 +492,26 @@ export const confirmHandler = async ({ ctx, input }: ConfirmOptions) => {
       smsReminderNumber: booking.smsReminderNumber || undefined,
     };
     await handleWebhookTrigger({ subscriberOptions, eventTrigger, webhookData, traceContext });
-
   }
 
   const message = confirmed ? "Booking confirmed" : "Booking rejected";
   const status = confirmed ? BookingStatus.ACCEPTED : BookingStatus.REJECTED;
+
+  void sendPendoTrackEvent({
+    event: "Booking confirmed or rejected",
+    visitorId: ctx.user.id,
+    accountId: organizerOrganizationId,
+    properties: {
+      booking_id: bookingId,
+      event_type_id: booking.eventTypeId,
+      status,
+      confirmed,
+      is_recurring: !!recurringEventId,
+      awaiting_payment: false,
+      has_rejection_reason: !confirmed && !!rejectionReason,
+      emails_enabled: emailsEnabled,
+    },
+  });
 
   return { message, status };
 };

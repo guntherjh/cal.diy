@@ -1,19 +1,20 @@
-import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
-import { parseRequestData } from "app/api/parseRequestData";
-import { NextResponse, type NextRequest } from "next/server";
-
-import calcomSignupHandler from "./handlers/calcomSignupHandler";
-import selfHostedSignupHandler from "./handlers/selfHostedHandler";
+import process from "node:process";
 import { FeaturesRepository } from "@calcom/features/flags/features.repository";
 import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowError";
 import { IS_PREMIUM_USERNAME_ENABLED } from "@calcom/lib/constants";
 import getIP from "@calcom/lib/getIP";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
-import { piiHasher } from "@calcom/lib/server/PiiHasher";
 import { checkCfTurnstileToken } from "@calcom/lib/server/checkCfTurnstileToken";
+import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import { signupSchema } from "@calcom/prisma/zod-utils";
+import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
+import { parseRequestData } from "app/api/parseRequestData";
+import { type NextRequest, NextResponse } from "next/server";
+import calcomSignupHandler from "./handlers/calcomSignupHandler";
+import selfHostedSignupHandler from "./handlers/selfHostedHandler";
 
 async function ensureSignupIsEnabled(body: Record<string, string>) {
   const { token } = signupSchema
@@ -34,6 +35,34 @@ async function ensureSignupIsEnabled(body: Record<string, string>) {
       message: "Signup is disabled",
     });
   }
+}
+
+async function trackAccountCreated({
+  email,
+  hasTeamInvite,
+  paymentPending,
+}: {
+  email?: string;
+  hasTeamInvite: boolean;
+  paymentPending: boolean;
+}): Promise<void> {
+  if (!email) return;
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() },
+    select: { id: true, organizationId: true },
+  });
+  if (!user) return;
+
+  await sendPendoTrackEvent({
+    event: "Account created",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: {
+      signup_flow: IS_PREMIUM_USERNAME_ENABLED ? "premium_username" : "self_hosted",
+      has_team_invite: hasTeamInvite,
+      payment_pending: paymentPending,
+    },
+  });
 }
 
 async function handler(req: NextRequest) {
@@ -62,11 +91,20 @@ async function handler(req: NextRequest) {
      * TODO: (SEAN) - Extract a lot of the logic from calcomHandler into a separate file and import it into both handlers.
      * @zomars: We need to be able to test this with E2E. They way it's done RN it will never run on CI.
      */
-    if (IS_PREMIUM_USERNAME_ENABLED) {
-      return await calcomSignupHandler(body, query);
+    const response = IS_PREMIUM_USERNAME_ENABLED
+      ? await calcomSignupHandler(body, query)
+      : await selfHostedSignupHandler(body);
+
+    // 402 means the user was created but still has to pay for a premium username
+    if (response.status === 201 || response.status === 402) {
+      void trackAccountCreated({
+        email: body.email,
+        hasTeamInvite: !!body.token,
+        paymentPending: response.status === 402,
+      }).catch((error) => logger.warn("Failed to track account creation", error));
     }
 
-    return await selfHostedSignupHandler(body);
+    return response;
   } catch (e) {
     if (e instanceof HttpError) {
       return NextResponse.json({ message: e.message }, { status: e.statusCode });

@@ -1,14 +1,15 @@
+import process from "node:process";
 import { ErrorCode } from "@calcom/features/auth/lib/ErrorCode";
 import { verifyPassword } from "@calcom/features/auth/lib/verifyPassword";
 import { deleteUser } from "@calcom/features/users/lib/deleteUser";
-import { symmetricDecrypt } from "@calcom/lib/crypto";
 import { isPasswordValid } from "@calcom/lib/auth/isPasswordValid";
+import { symmetricDecrypt } from "@calcom/lib/crypto";
 import { HttpError } from "@calcom/lib/http-error";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import { totpAuthenticatorCheck } from "@calcom/lib/totp";
 import { prisma } from "@calcom/prisma";
 import { IdentityProvider } from "@calcom/prisma/enums";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
-
 import type { TDeleteMeInputSchema } from "./deleteMe.schema";
 
 export type DeleteMeOptions = {
@@ -96,5 +97,15 @@ export const deleteMeHandler = async ({ ctx, input }: DeleteMeOptions) => {
   }
 
   await deleteUser(user);
+
+  void sendPendoTrackEvent({
+    event: "Account deleted",
+    visitorId: user.id,
+    accountId: ctx.user.organizationId,
+    properties: {
+      had_two_factor_enabled: user.twoFactorEnabled,
+      role: ctx.user.role,
+    },
+  });
   return;
 };

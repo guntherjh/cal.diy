@@ -1,4 +1,5 @@
 import { OAuthClientRepository } from "@calcom/features/oauth/repositories/OAuthClientRepository";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import type { PrismaClient } from "@calcom/prisma";
 import { OAuthClientStatus } from "@calcom/prisma/enums";
 import { TRPCError } from "@trpc/server";
@@ -43,6 +44,19 @@ export const updateClientHandler = async ({ ctx, input }: UpdateClientOptions) =
       await ctx.prisma.oAuthClient.update({
         where: { clientId },
         data: { rejectionReason },
+      });
+    }
+
+    // Only a real status change counts as a review, not re-saving the same status
+    if (status !== existingClient.status) {
+      void sendPendoTrackEvent({
+        event: "OAuth client reviewed",
+        visitorId: ctx.user.id,
+        properties: {
+          status,
+          previous_status: existingClient.status,
+          has_rejection_reason: status === OAuthClientStatus.REJECTED && !!rejectionReason,
+        },
       });
     }
   }

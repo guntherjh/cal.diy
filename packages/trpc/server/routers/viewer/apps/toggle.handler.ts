@@ -1,11 +1,10 @@
 import { getLocalAppMetadata } from "@calcom/app-store/utils";
 import { sendDisabledAppEmail } from "@calcom/emails/integration-email-service";
 import { getTranslation } from "@calcom/i18n/server";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import type { PrismaClient } from "@calcom/prisma";
 import { AppCategories } from "@calcom/prisma/enums";
-
 import { TRPCError } from "@trpc/server";
-
 import type { TrpcSessionUser } from "../../../types";
 import type { TToggleInputSchema } from "./toggle.schema";
 
@@ -164,6 +163,17 @@ export const toggleHandler = async ({ input, ctx }: ToggleOptions) => {
       );
     }
   }
+
+  void sendPendoTrackEvent({
+    event: "App enabled for the instance",
+    visitorId: ctx.user.id,
+    accountId: ctx.user.organizationId,
+    properties: {
+      app_slug: app.slug,
+      enabled: app.enabled,
+      app_category: app.categories[0],
+    },
+  });
 
   return app.enabled;
 };

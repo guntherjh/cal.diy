@@ -1,8 +1,3 @@
-import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { z } from "zod";
-
 import {
   generateGuestMeetingTokenFromOwnerMeetingToken,
   updateMeetingTokenIfExpired,
@@ -11,8 +6,13 @@ import { getHostsAndGuests } from "@calcom/features/bookings/lib/getHostsAndGues
 import { BookingRepository } from "@calcom/features/bookings/repositories/BookingRepository";
 import { getCalVideoReference } from "@calcom/features/get-cal-video-reference";
 import { VideoCallGuestRepository } from "@calcom/features/video-call-guest/repositories/VideoCallGuestRepository";
+import { sendPendoTrackEvent } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import { validateCsrfToken } from "@calcom/web/lib/validateCsrfToken";
+import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 
 const videoCallGuestWithCsrfSchema = z.object({
   bookingUid: z.string(),
@@ -83,6 +83,20 @@ async function handler(req: NextRequest) {
     meetingToken: videoReferencePassword,
     userId: guestSession.id,
   });
+
+  // Guests aren't Cal.diy users, so the session is attributed to the host who owns the booking
+  const hostUserId = booking.user?.id ?? booking.eventType?.hosts?.[0]?.userId;
+  if (hostUserId) {
+    void sendPendoTrackEvent({
+      event: "Guest video session created",
+      visitorId: hostUserId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventType?.id,
+        is_recorded: booking.isRecorded,
+      },
+    });
+  }
 
   return NextResponse.json({
     guestSessionId: guestSession.id,
