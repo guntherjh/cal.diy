@@ -6,6 +6,7 @@ import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
 import { deriveAppDictKeyFromType } from "@calcom/lib/deriveAppDictKeyFromType";
 import { HttpError } from "@calcom/lib/http-error";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { trackPendoEvent } from "@calcom/lib/server/trackPendoEvent";
 import prisma from "@calcom/prisma";
 import type { AppDeclarativeHandler, AppHandler } from "@calcom/types/AppHandler";
 
@@ -44,6 +45,56 @@ const defaultIntegrationAddHandler = async ({
   await createCredential({ user: user, appType, slug, teamId });
 };
 
+const INSTALL_ENDPOINTS = ["add", "callback"];
+
+const getLatestCredentialId = async (): Promise<number | null> => {
+  try {
+    const { _max } = await prisma.credential.aggregate({ _max: { id: true } });
+    return _max.id ?? 0;
+  } catch (error) {
+    console.error("Failed to read latest credential id for install tracking", error);
+    return null;
+  }
+};
+
+// App handlers don't return the stored credential, so new credentials are detected by id to report installs
+// from both declarative handlers and OAuth callbacks.
+const trackInstalledApps = async ({
+  latestCredentialIdBefore,
+  userId,
+  teamId,
+  apiEndpoint,
+}: {
+  latestCredentialIdBefore: number;
+  userId: number;
+  teamId?: number;
+  apiEndpoint: string;
+}) => {
+  try {
+    const newCredentials = await prisma.credential.findMany({
+      where: {
+        id: { gt: latestCredentialIdBefore },
+        OR: [{ userId }, ...(teamId ? [{ teamId }] : [])],
+      },
+      select: { id: true, appId: true, teamId: true },
+    });
+    for (const credential of newCredentials) {
+      trackPendoEvent({
+        event: "App installed",
+        userId,
+        properties: {
+          app_slug: credential.appId,
+          credential_id: credential.id,
+          is_team_install: !!credential.teamId,
+          install_step: apiEndpoint,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("Failed to track app installation", error);
+  }
+};
+
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   // Check that user is authenticated
   req.session = await getServerSession({ req });
@@ -70,12 +121,24 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     if (typeof handler === "undefined")
       throw new HttpError({ statusCode: 404, message: `API handler not found` });
 
+    const sessionUserId = req.session?.user?.id;
+    const shouldTrackInstall = !!sessionUserId && INSTALL_ENDPOINTS.includes(apiEndpoint);
+    const latestCredentialIdBefore = shouldTrackInstall ? await getLatestCredentialId() : null;
+
     if (typeof handler === "function") {
       await handler(req, res);
     } else {
       await defaultIntegrationAddHandler({ user: req.session?.user, teamId: Number(teamId), ...handler });
       const redirectUrl = handler.redirect?.url ?? undefined;
       res.json({ url: redirectUrl, newTab: handler.redirect?.newTab });
+    }
+    if (sessionUserId && latestCredentialIdBefore !== null) {
+      await trackInstalledApps({
+        latestCredentialIdBefore,
+        userId: sessionUserId,
+        teamId: Number(teamId) || undefined,
+        apiEndpoint,
+      });
     }
     if (!res.writableEnded) res.status(200);
     return;

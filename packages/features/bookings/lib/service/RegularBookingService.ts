@@ -66,6 +66,7 @@ import { criticalLogger } from "@calcom/lib/logger.server";
 import { getPiiFreeCalendarEvent, getPiiFreeEventType } from "@calcom/lib/piiFreeData";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { trackPendoEvent } from "@calcom/lib/server/trackPendoEvent";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
 import type { PrismaClient } from "@calcom/prisma";
@@ -2524,6 +2525,27 @@ async function handler(
         eventName: "Cal.diy lead",
       },
       isTeamEventType,
+    });
+
+    const isReschedule = !!rescheduleUid && !!originalRescheduledBooking;
+    // Bookers are usually anonymous, so booking events are attributed to the organizer.
+    trackPendoEvent({
+      event: isReschedule ? "Booking rescheduled" : "Booking created",
+      userId: organizerUser.id,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: eventType.id,
+        booking_status: booking.status,
+        is_team_event: isTeamEventType,
+        scheduling_type: eventType.schedulingType,
+        is_recurring: !!input.bookingData.allRecurringDates,
+        is_platform_booking: isPlatformBooking,
+        booked_by_logged_in_user: !!userId,
+        ...(isReschedule && {
+          original_booking_id: originalRescheduledBooking?.id ?? null,
+          rescheduled_by_booker: reqBody.rescheduledBy === bookerEmail,
+        }),
+      },
     });
 
     // Unused until we deploy to trigger.dev production

@@ -23,6 +23,7 @@ import { parseRecurringEvent } from "@calcom/lib/isRecurringEvent";
 import { getTranslation } from "@calcom/i18n/server";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
+import { trackPendoEvent } from "@calcom/lib/server/trackPendoEvent";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import type { TraceContext } from "@calcom/lib/tracing";
 import { prisma } from "@calcom/prisma";
@@ -372,6 +373,19 @@ export const confirmHandler = async ({ ctx, input }: ConfirmOptions) => {
       platformClientParams,
       traceContext,
     });
+
+    trackPendoEvent({
+      event: "Booking confirmed",
+      userId: ctx.user.id,
+      organizationId: organizerOrganizationId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventTypeId,
+        is_recurring: !!recurringEventId,
+        is_team_event: !!booking.eventType?.teamId,
+        emails_enabled: emailsEnabled ?? true,
+      },
+    });
   } else {
     evt.rejectionReason = rejectionReason;
     let rejectedBookings: {
@@ -478,6 +492,19 @@ export const confirmHandler = async ({ ctx, input }: ConfirmOptions) => {
     };
     await handleWebhookTrigger({ subscriberOptions, eventTrigger, webhookData, traceContext });
 
+    trackPendoEvent({
+      event: "Booking rejected",
+      userId: ctx.user.id,
+      organizationId: organizerOrganizationId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventTypeId,
+        is_recurring: !!recurringEventId,
+        rejected_booking_count: rejectedBookings.length,
+        has_rejection_reason: !!rejectionReason,
+        is_team_event: !!booking.eventType?.teamId,
+      },
+    });
   }
 
   const message = confirmed ? "Booking confirmed" : "Booking rejected";

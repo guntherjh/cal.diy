@@ -4,6 +4,7 @@ import { BookingAccessService } from "@calcom/features/bookings/services/Booking
 import { WebhookService } from "@calcom/features/webhooks/lib/WebhookService";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
+import { trackPendoEvent } from "@calcom/lib/server/trackPendoEvent";
 import { getTranslation } from "@calcom/i18n/server";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { prisma } from "@calcom/prisma";
@@ -222,6 +223,20 @@ const handleMarkNoShow = async ({
       responsePayload.setMessage(t("booking_no_show_updated"));
     }
 
+    const updatedAttendees = responsePayload.attendees;
+    // Host no-shows can be reported without a logged-in user, so the booking organizer is the fallback.
+    trackPendoEvent({
+      event: "No-show recorded",
+      userId: userId ?? booking.user?.id,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventType?.id ?? null,
+        attendees_marked_count: updatedAttendees.filter((attendee) => attendee.noShow).length,
+        attendees_unmarked_count: updatedAttendees.filter((attendee) => !attendee.noShow).length,
+        no_show_host: noShowHost ?? null,
+        marked_by_host: !!userId,
+      },
+    });
 
     return responsePayload.getPayload();
   } catch (error) {

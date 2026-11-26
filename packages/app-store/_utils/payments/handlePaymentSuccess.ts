@@ -17,6 +17,7 @@ import { getTeamIdFromEventType } from "@calcom/lib/getTeamIdFromEventType";
 import { HttpError as HttpCode } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
+import { trackPendoEvent } from "@calcom/lib/server/trackPendoEvent";
 import type { TraceContext } from "@calcom/lib/tracing";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
 import prisma from "@calcom/prisma";
@@ -209,6 +210,23 @@ export async function handlePaymentSuccess(params: {
     }
   } else if (areEmailsEnabled) {
     await sendScheduledEmailsAndSMS({ ...evt }, undefined, undefined, undefined, eventType.metadata);
+  }
+
+  // Payment webhooks can be delivered more than once, so only the first transition to paid is reported.
+  if (!booking.paid) {
+    trackPendoEvent({
+      event: "Booking payment completed",
+      userId: booking.userId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventType?.id ?? null,
+        payment_app: appSlug,
+        price: booking.eventType?.price ?? null,
+        currency: booking.eventType?.currency ?? null,
+        requires_confirmation: requiresConfirmation,
+        booking_status: updatedBooking.status,
+      },
+    });
   }
 
   throw new HttpCode({

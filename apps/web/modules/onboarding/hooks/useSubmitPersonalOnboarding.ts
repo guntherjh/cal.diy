@@ -6,6 +6,13 @@ import { trpc } from "@calcom/trpc/react";
 import { showToast } from "@calcom/ui/components/toast";
 import { setShowWelcomeToCalcomModalFlag } from "@calcom/web/modules/shell/hooks/useWelcomeToCalcomModal";
 
+type PendoAgent = {
+  track: (event: string, properties?: Record<string, string | number | boolean>) => void;
+};
+
+// Module-level so the one-time milestone isn't reported again if the hook remounts.
+let hasTrackedOnboardingCompleted = false;
+
 const ONBOARDING_REDIRECT_KEY = "onBoardingRedirect";
 const ORG_MODAL_STORAGE_KEY = "showNewOrgModal";
 
@@ -59,6 +66,19 @@ export const useSubmitPersonalOnboarding = () => {
       await utils.viewer.me.get.refetch();
 
       const redirectUrl = localStorage.getItem(ONBOARDING_REDIRECT_KEY);
+
+      if (!hasTrackedOnboardingCompleted) {
+        hasTrackedOnboardingCompleted = true;
+        try {
+          (window as Window & { pendo?: PendoAgent }).pendo?.track("Onboarding completed", {
+            onboarding_type: "personal",
+            default_event_types_created: eventTypes?.length === 0,
+            has_redirect_url: !!redirectUrl,
+          });
+        } catch (error) {
+          console.error(error);
+        }
+      }
       if (redirectUrl) {
         localStorage.removeItem(ONBOARDING_REDIRECT_KEY);
         router.push(redirectUrl);
