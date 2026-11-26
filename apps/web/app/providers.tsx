@@ -7,6 +7,7 @@ import { ToastProvider } from "@coss/ui/components/toast";
 
 import { WebPushProvider } from "@calcom/web/modules/notifications/components/WebPushContext";
 import { NotificationSoundHandler } from "@calcom/web/components/notification-sound-handler";
+import { PendoTracker } from "@calcom/web/components/PendoTracker";
 
 import useIsBookingPage from "@lib/hooks/useIsBookingPage";
 
@@ -25,6 +26,7 @@ export function Providers({ isEmbed, children, country }: ProvidersProps) {
     <GeoProvider country={country}>
       <SessionProvider>
         <TrpcProvider>
+          <PendoTracker />
           <ToastProvider position="bottom-center">
             {!isEmbed && !isBookingPage && <NotificationSoundHandler />}
             {/* @ts-expect-error react-inlinesvg/provider is incompatible with @types/react@18.0.26. Remove when these types are compatible. */}

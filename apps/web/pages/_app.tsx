@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import React from "react";
 import CacheProvider from "react-inlinesvg/provider";
 
+import { PendoTracker } from "@calcom/web/components/PendoTracker";
 import { WebPushProvider } from "@calcom/web/modules/notifications/components/WebPushContext";
 import { trpc } from "@calcom/trpc/react";
 
@@ -16,6 +17,7 @@ function MyApp(props: AppProps) {
 
   return (
     <SessionProvider session={pageProps.session ?? undefined}>
+      <PendoTracker />
       <WebPushProvider>
         {/* @ts-expect-error react-inlinesvg/provider is incompatible with @types/react@18.0.26. Remove when these types are compatible. */}
         <CacheProvider>
