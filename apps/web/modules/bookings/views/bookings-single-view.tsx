@@ -1092,7 +1092,7 @@ export default function Success(props: PageProps) {
                     <>
                       <div className="my-3 flex justify-center space-x-1">
                         {RATING_OPTIONS.map((option) => (
-                          <button
+                          <button data-novus-id="booking-confirmation-rate-a-meeting"
                             key={option.value}
                             className={classNames(
                               "flex h-10 w-10 items-center justify-center rounded-full border text-2xl hover:opacity-100",

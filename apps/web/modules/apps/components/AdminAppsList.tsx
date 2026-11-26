@@ -93,7 +93,7 @@ const IntegrationContainer = ({
               </Button>
             )}
 
-            <Switch
+            <Switch data-novus-id="admin-apps-enable-or-disable-an-app-for-the-instance"
               checked={app.enabled}
               onClick={() => {
                 if (app.enabled) {
