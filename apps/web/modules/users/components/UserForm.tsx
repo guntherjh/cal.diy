@@ -290,7 +290,7 @@ export function UserForm({
       />
 
       <br />
-      <Button type="submit" color="primary">
+      <Button data-novus-id="edit-user-edit-a-user" type="submit" color="primary">
         {t(submitLabel)}
       </Button>
     </Form>

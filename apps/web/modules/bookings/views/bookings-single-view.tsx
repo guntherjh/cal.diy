@@ -1119,7 +1119,7 @@ export default function Success(props: PageProps) {
                         onChange={(event) => setComment(event.target.value)}
                       />
                       <div className="my-4 flex justify-start">
-                        <Button
+                        <Button data-novus-id="booking-confirmation-rate-a-meeting-and-leave-feedback"
                           loading={mutation.isPending}
                           disabled={isFeedbackSubmitted}
                           onClick={async () => {

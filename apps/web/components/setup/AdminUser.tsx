@@ -194,7 +194,7 @@ export const AdminUser = (props: {
           />
         </div>
         <div className="flex justify-end gap-2">
-          <Button
+          <Button data-novus-id="instance-setup-wizard-create-the-first-administrator"
             type="submit"
             color="primary"
             loading={formMethods.formState.isSubmitting}

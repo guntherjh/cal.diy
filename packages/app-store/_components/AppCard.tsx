@@ -93,7 +93,7 @@ export default function AppCard({
             )} */}
             {app?.isInstalled || app.credentialOwner ? (
               <div className="ml-auto flex items-center">
-                <Switch
+                <Switch data-novus-id="event-type-apps-enable-an-app-on-an-event-type"
                   size="sm"
                   disabled={!app.enabled || managedDisabled || disableSwitch}
                   onCheckedChange={(enabled) => {

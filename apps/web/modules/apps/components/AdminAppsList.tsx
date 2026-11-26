@@ -93,7 +93,7 @@ const IntegrationContainer = ({
               </Button>
             )}
 
-            <Switch
+            <Switch data-novus-id="apps-admin-enable-or-disable-an-app-for-the-instance"
               checked={app.enabled}
               onClick={() => {
                 if (app.enabled) {
@@ -257,7 +257,7 @@ const EditKeysModal: FC<{
         )}
         <DialogFooter showDivider className="mt-8">
           <DialogClose onClick={handleModelClose} />
-          <Button form="edit-keys" type="submit">
+          <Button data-novus-id="apps-admin-save-app-api-keys-for-the-instance" form="edit-keys" type="submit">
             {t("save")}
           </Button>
         </DialogFooter>

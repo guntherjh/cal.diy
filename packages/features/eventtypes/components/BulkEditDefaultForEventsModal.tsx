@@ -98,7 +98,7 @@ export function BulkEditDefaultForEventsModal({
                 props.handleBulkEditDialogToggle();
               }}
             />
-            <Button type="submit" color="primary" loading={props.isPending} disabled={isButtonDisabled}>
+            <Button data-novus-id="availability-apply-the-default-schedule-to-event-types" type="submit" color="primary" loading={props.isPending} disabled={isButtonDisabled}>
               {t("update")}
             </Button>
           </DialogFooter>

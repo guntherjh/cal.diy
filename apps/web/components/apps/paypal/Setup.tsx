@@ -67,7 +67,7 @@ export default function PayPalSetup() {
 
               {/* Button to submit */}
               <div className="mt-5 flex flex-row justify-end">
-                <Button
+                <Button data-novus-id="app-setup-save-payment-app-keys"
                   color="primary"
                   onClick={() => {
                     saveKeysMutation.mutate({

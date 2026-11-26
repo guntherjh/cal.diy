@@ -175,7 +175,7 @@ const TravelScheduleModal = ({
         </DialogPanel>
         <DialogFooter>
           <DialogClose render={<Button variant="ghost" />}>{t("cancel")}</DialogClose>
-          <Button
+          <Button data-novus-id="general-schedule-a-timezone-change-for-travel"
             disabled={isNoEndDate ? !startDate : !startDate || !endDate}
             onClick={() => {
               createNewSchedule();

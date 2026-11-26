@@ -160,7 +160,7 @@ const UserProfile = ({ user }: UserProfileProps) => {
         />
         <p className="text-default mt-2 font-sans text-sm font-normal">{t("few_sentences_about_yourself")}</p>
       </fieldset>
-      <Button
+      <Button data-novus-id="getting-started-wizard-complete-profile-and-finish-the-setup-wizard"
         loading={mutation.isPending}
         EndIcon="arrow-right"
         type="submit"
