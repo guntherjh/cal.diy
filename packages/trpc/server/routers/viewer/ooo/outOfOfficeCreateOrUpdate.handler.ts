@@ -8,6 +8,7 @@ import getWebhooks from "@calcom/features/webhooks/lib/getWebhooks";
 import type { OOOEntryPayloadType } from "@calcom/features/webhooks/lib/sendPayload";
 import sendPayload from "@calcom/features/webhooks/lib/sendPayload";
 import { getTranslation } from "@calcom/i18n/server";
+import { trackPendoEvent } from "@calcom/lib/server/trackPendoEvent";
 import prisma from "@calcom/prisma";
 import { WebhookTriggerEvents } from "@calcom/prisma/enums";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
@@ -193,6 +194,19 @@ export const outOfOfficeCreateOrUpdate = async ({ ctx, input }: TBookingRedirect
       userId: oooUserId,
       reasonId: input.reasonId,
       toUserId: toUserId ? toUserId : null,
+    },
+  });
+
+  trackPendoEvent({
+    event: "Out-of-office entry saved",
+    userId: ctx.user.id,
+    organizationId: ctx.user.organizationId,
+    properties: {
+      is_update: !!previousOutOfOfficeEntry,
+      has_redirect: !!toUserId,
+      set_for_other_user: oooUserId !== ctx.user.id,
+      reason_id: input.reasonId,
+      duration_days: endTimeUtc.diff(startTimeUtc, "day") + 1,
     },
   });
   // Explicit type to avoid Prisma.OutOfOfficeEntryGetPayload conditional types leaking into .d.ts files

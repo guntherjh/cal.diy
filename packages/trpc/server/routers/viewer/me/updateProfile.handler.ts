@@ -7,6 +7,7 @@ import hasKeyInMetadata from "@calcom/lib/hasKeyInMetadata";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { uploadAvatar } from "@calcom/lib/server/avatar";
+import { trackPendoEvent } from "@calcom/lib/server/trackPendoEvent";
 import { getTranslation } from "@calcom/i18n/server";
 import { resizeBase64Image } from "@calcom/lib/server/resizeBase64Image";
 import slugify from "@calcom/lib/slugify";
@@ -24,7 +25,9 @@ import { type TUpdateProfileInputSchema, updateUserMetadataAllowedKeys } from ".
 const getBillingProviderService = async (..._args: unknown[]) => ({
   createCustomer: async (..._a: unknown[]) => null,
   getCustomer: async (..._a: unknown[]) => null,
-  getSubscriptions: async (..._a: unknown[]): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
+  getSubscriptions: async (
+    ..._a: unknown[]
+  ): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
   updateCustomer: async (..._a: unknown[]) => null,
 });
 const updateNewTeamMemberEventTypes = async (..._args: unknown[]) => {};
@@ -389,6 +392,20 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
       await prisma.$transaction(recordsToModifyQueue);
     }
   }
+
+  trackPendoEvent({
+    event: "Profile updated",
+    userId: user.id,
+    organizationId: user.organizationId,
+    properties: {
+      updated_field_count: Object.keys(rest).length,
+      email_changed: !!hasEmailBeenChanged,
+      username_changed: !!data.username && data.username !== user.username,
+      time_zone_changed: !!input.timeZone && input.timeZone !== user.timeZone,
+      avatar_changed: input.avatarUrl !== undefined,
+      locale: updatedUser.locale,
+    },
+  });
 
   return {
     ...input,

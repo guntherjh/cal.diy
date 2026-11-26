@@ -8,6 +8,7 @@ import { ErrorCode } from "@calcom/features/auth/lib/ErrorCode";
 import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
 import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowError";
 import { symmetricDecrypt } from "@calcom/lib/crypto";
+import { trackPendoEvent } from "@calcom/lib/server/trackPendoEvent";
 import { totpAuthenticatorCheck } from "@calcom/lib/totp";
 import prisma from "@calcom/prisma";
 
@@ -69,6 +70,16 @@ async function postHandler(req: NextRequest) {
     },
     data: {
       twoFactorEnabled: true,
+    },
+  });
+
+  trackPendoEvent({
+    event: "Two-factor authentication enabled",
+    userId: user.id,
+    organizationId: user.organizationId,
+    properties: {
+      method: "totp",
+      identity_provider: user.identityProvider,
     },
   });
 

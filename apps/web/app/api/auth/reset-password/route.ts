@@ -10,6 +10,7 @@ import { hashPassword } from "@calcom/lib/auth/hashPassword";
 import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowError";
 import getIP from "@calcom/lib/getIP";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { trackPendoEvent } from "@calcom/lib/server/trackPendoEvent";
 import prisma from "@calcom/prisma";
 import { IdentityProvider } from "@calcom/prisma/enums";
 
@@ -63,10 +64,15 @@ async function handler(req: NextRequest) {
   // this can fail if a password request has been made for an email that has since changed or-
   // never existed within Cal. In this case we do not want to disclose the email's existence.
   // instead, we just return 404
+  let resetUser: { id: number; organizationId: number | null };
   try {
-    await prisma.user.update({
+    resetUser = await prisma.user.update({
       where: {
         email: maybeRequest.email,
+      },
+      select: {
+        id: true,
+        organizationId: true,
       },
       data: {
         password: {
@@ -85,6 +91,12 @@ async function handler(req: NextRequest) {
   }
 
   await expireResetPasswordRequest(rawRequestId);
+
+  trackPendoEvent({
+    event: "Password reset",
+    userId: resetUser.id,
+    organizationId: resetUser.organizationId,
+  });
 
   return NextResponse.json({ message: "Password reset." }, { status: 201 });
 }
