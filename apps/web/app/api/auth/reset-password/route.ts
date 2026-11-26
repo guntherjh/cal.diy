@@ -1,17 +1,17 @@
+import { validPassword } from "@calcom/features/auth/lib/validPassword";
+import { hashPassword } from "@calcom/lib/auth/hashPassword";
+import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowError";
+import getIP from "@calcom/lib/getIP";
+import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
+import prisma from "@calcom/prisma";
+import { IdentityProvider } from "@calcom/prisma/enums";
 import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
 import { parseRequestData } from "app/api/parseRequestData";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-
-import { validPassword } from "@calcom/features/auth/lib/validPassword";
-import { hashPassword } from "@calcom/lib/auth/hashPassword";
-import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowError";
-import getIP from "@calcom/lib/getIP";
-import { piiHasher } from "@calcom/lib/server/PiiHasher";
-import prisma from "@calcom/prisma";
-import { IdentityProvider } from "@calcom/prisma/enums";
 
 const passwordResetRequestSchema = z.object({
   csrfToken: z.string(),
@@ -63,11 +63,13 @@ async function handler(req: NextRequest) {
   // this can fail if a password request has been made for an email that has since changed or-
   // never existed within Cal. In this case we do not want to disclose the email's existence.
   // instead, we just return 404
+  let updatedUser: { id: number; organizationId: number | null };
   try {
-    await prisma.user.update({
+    updatedUser = await prisma.user.update({
       where: {
         email: maybeRequest.email,
       },
+      select: { id: true, organizationId: true },
       data: {
         password: {
           upsert: {
@@ -85,6 +87,12 @@ async function handler(req: NextRequest) {
   }
 
   await expireResetPasswordRequest(rawRequestId);
+
+  pendoTrack({
+    event: "Password reset completed",
+    visitorId: updatedUser.id,
+    accountId: updatedUser.organizationId,
+  });
 
   return NextResponse.json({ message: "Password reset." }, { status: 201 });
 }

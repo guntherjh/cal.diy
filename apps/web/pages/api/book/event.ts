@@ -9,6 +9,7 @@ import getIP from "@calcom/lib/getIP";
 import { checkCfTurnstileToken } from "@calcom/lib/server/checkCfTurnstileToken";
 import { defaultResponder } from "@calcom/lib/server/defaultResponder";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import type { TraceContext } from "@calcom/lib/tracing";
 import { prisma } from "@calcom/prisma";
 import { CreationSource } from "@calcom/prisma/enums";
@@ -56,6 +57,22 @@ async function handler(req: NextApiRequest & { userId?: number; traceContext: Tr
       traceContext: req.traceContext,
     },
   });
+
+  if (!booking.isDryRun && booking.userId) {
+    // Attributed to the host because bookers are usually anonymous visitors without a Cal.diy account.
+    pendoTrack({
+      event: "Booking created",
+      visitorId: booking.userId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventTypeId,
+        status: booking.status,
+        is_reschedule: Boolean(booking.previousBooking),
+        payment_required: Boolean(booking.paymentRequired),
+        booker_signed_in: Boolean(session?.user?.id),
+      },
+    });
+  }
 
   return booking;
 }

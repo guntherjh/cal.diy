@@ -1,4 +1,5 @@
 import { OAuthClientRepository } from "@calcom/features/oauth/repositories/OAuthClientRepository";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import type { PrismaClient } from "@calcom/prisma";
 import { OAuthClientStatus } from "@calcom/prisma/enums";
 import { TRPCError } from "@trpc/server";
@@ -43,6 +44,19 @@ export const updateClientHandler = async ({ ctx, input }: UpdateClientOptions) =
       await ctx.prisma.oAuthClient.update({
         where: { clientId },
         data: { rejectionReason },
+      });
+    }
+
+    if (status !== existingClient.status) {
+      pendoTrack({
+        event: "OAuth client reviewed",
+        visitorId: ctx.user.id,
+        properties: {
+          client_id: clientId,
+          previous_status: existingClient.status,
+          status,
+          has_rejection_reason: Boolean(rejectionReason),
+        },
       });
     }
   }

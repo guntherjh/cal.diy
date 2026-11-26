@@ -31,6 +31,7 @@ import logger from "@calcom/lib/logger";
 import { randomString } from "@calcom/lib/random";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { hashEmail } from "@calcom/lib/server/PiiHasher";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import slugify from "@calcom/lib/slugify";
 import type { TrackingData } from "@calcom/lib/tracking";
 import prisma from "@calcom/prisma";
@@ -1185,6 +1186,17 @@ export const getOptions = ({
       // this is a workaround – in the future once we move to use the Account model in the DB
       // we should use NextAuth's isNewUser flag instead: https://next-auth.js.org/configuration/events#signin
       const isNewUser = new Date(user.createdDate) > new Date(Date.now() - 10 * 60 * 1000);
+      if (user.id) {
+        pendoTrack({
+          event: "Signed in",
+          visitorId: user.id,
+          accountId: user.org?.id,
+          properties: {
+            provider: message.account?.provider ?? null,
+            is_new_user: isNewUser,
+          },
+        });
+      }
       if ((isENVDev || IS_CALCOM) && isNewUser) {
         if (process.env.DUB_API_KEY) {
           const clickId = getDubId();

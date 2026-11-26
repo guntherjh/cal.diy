@@ -1,13 +1,13 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import type { Session } from "next-auth";
-
 import { throwIfNotHaveAdminAccessToTeam } from "@calcom/app-store/_utils/throwIfNotHaveAdminAccessToTeam";
 import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
 import { deriveAppDictKeyFromType } from "@calcom/lib/deriveAppDictKeyFromType";
 import { HttpError } from "@calcom/lib/http-error";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import type { AppDeclarativeHandler, AppHandler } from "@calcom/types/AppHandler";
+import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 
 const defaultIntegrationAddHandler = async ({
   slug,
@@ -44,6 +44,45 @@ const defaultIntegrationAddHandler = async ({
   await createCredential({ user: user, appType, slug, teamId });
 };
 
+// OAuth apps store their credential in "callback" while declarative apps store it in "add".
+const CREDENTIAL_STORING_ENDPOINTS = ["add", "callback"];
+
+const findLatestCredentialForUser = (userId: number) =>
+  prisma.credential.findFirst({
+    where: { OR: [{ userId }, { team: { members: { some: { userId, accepted: true } } } }] },
+    orderBy: { id: "desc" },
+    select: { id: true, appId: true, teamId: true },
+  });
+
+// Comparing the newest credential before and after the app handler runs is the only reliable success
+// signal, because callback handlers redirect on both success and provider errors.
+const trackAppInstalledIfCredentialStored = async ({
+  user,
+  previousCredentialId,
+  apiEndpoint,
+}: {
+  user: Session["user"];
+  previousCredentialId: number | null;
+  apiEndpoint: string;
+}) => {
+  try {
+    const latestCredential = await findLatestCredentialForUser(user.id);
+    if (!latestCredential || latestCredential.id === previousCredentialId) return;
+    pendoTrack({
+      event: "App installed",
+      visitorId: user.id,
+      accountId: user.org?.id,
+      properties: {
+        app_slug: latestCredential.appId,
+        is_team_install: Boolean(latestCredential.teamId),
+        install_step: apiEndpoint,
+      },
+    });
+  } catch (error) {
+    console.error("Unable to track app install", error);
+  }
+};
+
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   // Check that user is authenticated
   req.session = await getServerSession({ req });
@@ -58,6 +97,18 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
 
   if (apiEndpoint === "add" && !req.session?.user?.id) {
     return res.status(401).json({ message: "You must be logged in to do this" });
+  }
+
+  const sessionUser = req.session?.user;
+  let shouldTrackInstall = Boolean(sessionUser?.id) && CREDENTIAL_STORING_ENDPOINTS.includes(apiEndpoint);
+  let previousCredentialId: number | null = null;
+  if (sessionUser && shouldTrackInstall) {
+    try {
+      previousCredentialId = (await findLatestCredentialForUser(sessionUser.id))?.id ?? null;
+    } catch (error) {
+      shouldTrackInstall = false;
+      console.error("Unable to read credentials before app install", error);
+    }
   }
 
   try {
@@ -76,6 +127,9 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       await defaultIntegrationAddHandler({ user: req.session?.user, teamId: Number(teamId), ...handler });
       const redirectUrl = handler.redirect?.url ?? undefined;
       res.json({ url: redirectUrl, newTab: handler.redirect?.newTab });
+    }
+    if (sessionUser && shouldTrackInstall) {
+      await trackAppInstalledIfCredentialStored({ user: sessionUser, previousCredentialId, apiEndpoint });
     }
     if (!res.writableEnded) res.status(200);
     return;

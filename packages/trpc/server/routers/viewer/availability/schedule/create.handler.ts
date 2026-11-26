@@ -1,9 +1,8 @@
 import { DEFAULT_SCHEDULE, getAvailabilityFromSchedule } from "@calcom/lib/availability";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import type { Prisma } from "@calcom/prisma/client";
-
 import { TRPCError } from "@trpc/server";
-
 import type { TrpcSessionUser } from "../../../../types";
 import type { TCreateInputSchema } from "./create.schema";
 
@@ -72,6 +71,17 @@ export const createHandler = async ({ input, ctx }: CreateOptions) => {
       },
     });
   }
+
+  pendoTrack({
+    event: "Availability schedule created",
+    visitorId: user.id,
+    properties: {
+      schedule_id: schedule.id,
+      is_default: !user.defaultScheduleId,
+      for_event_type: Boolean(input.eventTypeId),
+      availability_rules_count: availability.length,
+    },
+  });
 
   return { schedule };
 };

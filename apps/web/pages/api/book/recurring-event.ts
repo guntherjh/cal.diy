@@ -7,6 +7,7 @@ import getIP from "@calcom/lib/getIP";
 import { checkCfTurnstileToken } from "@calcom/lib/server/checkCfTurnstileToken";
 import { defaultResponder } from "@calcom/lib/server/defaultResponder";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import type { NextApiRequest } from "next";
 
 // @TODO: Didn't look at the contents of this function in order to not break old booking page.
@@ -57,6 +58,22 @@ async function handler(req: NextApiRequest & RequestMeta) {
     },
     creationSource: "WEBAPP",
   });
+
+  const firstBooking = createdBookings[0];
+  if (firstBooking && !firstBooking.isDryRun && firstBooking.userId) {
+    // Attributed to the host because bookers are usually anonymous visitors without a Cal.diy account.
+    pendoTrack({
+      event: "Recurring booking created",
+      visitorId: firstBooking.userId,
+      properties: {
+        recurring_event_id: firstBooking.recurringEventId ?? null,
+        event_type_id: firstBooking.eventTypeId,
+        status: firstBooking.status,
+        occurrences_count: createdBookings.length,
+        booker_signed_in: Boolean(session?.user?.id),
+      },
+    });
+  }
 
   return createdBookings;
 }

@@ -1,17 +1,49 @@
-import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
-import { cookies, headers } from "next/headers";
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-
 import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
 import handleCancelBooking from "@calcom/features/bookings/lib/handleCancelBooking";
 import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowError";
 import getIP from "@calcom/lib/getIP";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
+import prisma from "@calcom/prisma";
 import { bookingCancelWithCsrfSchema } from "@calcom/prisma/zod-utils";
 import { validateCsrfToken } from "@calcom/web/lib/validateCsrfToken";
-
 import { buildLegacyRequest } from "@lib/buildLegacyCtx";
+import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
+import { cookies, headers } from "next/headers";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
+// Visitors cancel without a session, so the booking host is used as the Pendo visitor in that case.
+async function trackBookingCancelled({
+  bookingId,
+  sessionUserId,
+  onlyRemovedAttendee,
+}: {
+  bookingId: number;
+  sessionUserId?: number;
+  onlyRemovedAttendee: boolean;
+}) {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: { userId: true, eventTypeId: true },
+    });
+    const visitorId = sessionUserId ?? booking?.userId;
+    if (!visitorId) return;
+    pendoTrack({
+      event: "Booking cancelled",
+      visitorId,
+      properties: {
+        booking_id: bookingId,
+        event_type_id: booking?.eventTypeId ?? null,
+        cancelled_by_host: Boolean(sessionUserId) && sessionUserId === booking?.userId,
+        only_removed_attendee: onlyRemovedAttendee,
+      },
+    });
+  } catch (error) {
+    console.error("Unable to track booking cancellation", error);
+  }
+}
 
 async function handler(req: NextRequest) {
   let appDirRequestBody;
@@ -61,6 +93,14 @@ async function handler(req: NextRequest) {
   //     userId: session?.user?.id || -1,
   //   },
   // });
+
+  if (result.success) {
+    await trackBookingCancelled({
+      bookingId: result.bookingId,
+      sessionUserId: session?.user?.id,
+      onlyRemovedAttendee: result.onlyRemovedAttendee,
+    });
+  }
 
   const statusCode = result.success ? 200 : 400;
 
