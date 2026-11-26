@@ -3,6 +3,7 @@ import { checkRateLimitAndThrowError } from "@calcom/lib/checkRateLimitAndThrowE
 import { emailSchema } from "@calcom/lib/emailSchema";
 import getIP from "@calcom/lib/getIP";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
 import { parseRequestData } from "app/api/parseRequestData";
@@ -27,10 +28,20 @@ async function handler(req: NextRequest) {
   try {
     const user = await prisma.user.findUnique({
       where: { email: email.data },
-      select: { name: true, email: true, locale: true },
+      select: { id: true, name: true, email: true, locale: true, organizationId: true },
     });
-    // Don't leak info about whether the user exists
-    if (user) passwordResetRequest(user).catch(console.error);
+    // Don't leak info about whether the user exists, so tracking stays off the awaited response path too
+    if (user)
+      passwordResetRequest(user)
+        .then(() =>
+          trackPendoEvent({
+            event: "Password reset email sent",
+            visitorId: user.id,
+            accountId: user.organizationId,
+            properties: { locale: user.locale ?? null },
+          })
+        )
+        .catch(console.error);
     return NextResponse.json({ message: "password_reset_email_sent" }, { status: 201 });
   } catch (reason) {
     console.error(reason);

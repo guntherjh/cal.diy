@@ -1,4 +1,5 @@
 import { WEBAPP_URL } from "@calcom/lib/constants";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import { CreationSource, RedirectType } from "@calcom/prisma/enums";
 import { UserSchema } from "@calcom/prisma/zod/modelSchema/UserSchema";
 import { authedAdminProcedure } from "@calcom/trpc/server/procedures/authedProcedure";
@@ -63,6 +64,16 @@ export const userAdminRouter = router({
   add: authedAdminProcedure.input(userBodySchema).mutation(async ({ ctx, input }) => {
     const { prisma } = ctx;
     const user = await prisma.user.create({ data: { ...input, creationSource: CreationSource.WEBAPP } });
+    await trackPendoEvent({
+      event: "User added by admin",
+      visitorId: ctx.user.id,
+      accountId: ctx.user.organizationId,
+      properties: {
+        created_user_id: user.id,
+        role: user.role,
+        identity_provider: user.identityProvider,
+      },
+    });
     return { user, message: `User with id: ${user.id} added successfully` };
   }),
   update: authedAdminProcedureWithRequestedUser

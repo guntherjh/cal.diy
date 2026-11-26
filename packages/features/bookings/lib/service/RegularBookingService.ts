@@ -66,6 +66,7 @@ import { criticalLogger } from "@calcom/lib/logger.server";
 import { getPiiFreeCalendarEvent, getPiiFreeEventType } from "@calcom/lib/piiFreeData";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
 import type { PrismaClient } from "@calcom/prisma";
@@ -2442,6 +2443,22 @@ async function handler(
   }
 
   if (!booking) throw new HttpError({ statusCode: 400, message: "Booking failed" });
+
+  // BOOKING_RESCHEDULED notifications only go out for bookings that don't need confirmation
+  if (rescheduleUid && isConfirmedByDefault && !isDryRun) {
+    await trackPendoEvent({
+      event: "Booking rescheduled",
+      visitorId: organizerUser.id,
+      accountId: organizerOrganizationId,
+      properties: {
+        booking_id: booking.id,
+        original_booking_id: originalRescheduledBooking?.id ?? null,
+        event_type_id: eventTypeId || null,
+        changed_organizer: changedOrganizer,
+        rescheduled_by_organizer: !!userReschedulingIsOwner,
+      },
+    });
+  }
 
   try {
     if (!isDryRun) {
