@@ -2,6 +2,7 @@ import { sendAdminOAuthClientNotification } from "@calcom/emails/oauth-email-ser
 import { getTranslation } from "@calcom/i18n/server";
 import { OAuthClientRepository } from "@calcom/features/oauth/repositories/OAuthClientRepository";
 import { generateSecret } from "@calcom/features/oauth/utils/generateSecret";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import type { PrismaClient } from "@calcom/prisma";
 
 import type { TSubmitClientInputSchema } from "./submitClientForReview.schema";
@@ -42,6 +43,18 @@ export const submitClientForReviewHandler = async ({ ctx, input }: SubmitClientO
     enablePkce,
     userId,
     status: "PENDING",
+  });
+
+  await trackPendoEvent({
+    event: "OAuth client submitted",
+    visitorId: userId,
+    properties: {
+      client_id: client.clientId,
+      client_status: client.status,
+      pkce_enabled: !!enablePkce,
+      has_logo: !!logo,
+      has_website_url: !!websiteUrl,
+    },
   });
 
   const t = await getTranslation("en", "common");

@@ -7,6 +7,7 @@ import hasKeyInMetadata from "@calcom/lib/hasKeyInMetadata";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { uploadAvatar } from "@calcom/lib/server/avatar";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import { getTranslation } from "@calcom/i18n/server";
 import { resizeBase64Image } from "@calcom/lib/server/resizeBase64Image";
 import slugify from "@calcom/lib/slugify";
@@ -24,7 +25,9 @@ import { type TUpdateProfileInputSchema, updateUserMetadataAllowedKeys } from ".
 const getBillingProviderService = async (..._args: unknown[]) => ({
   createCustomer: async (..._a: unknown[]) => null,
   getCustomer: async (..._a: unknown[]) => null,
-  getSubscriptions: async (..._a: unknown[]): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
+  getSubscriptions: async (
+    ..._a: unknown[]
+  ): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
   updateCustomer: async (..._a: unknown[]) => null,
 });
 const updateNewTeamMemberEventTypes = async (..._args: unknown[]) => {};
@@ -278,6 +281,21 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
       }
     }
     throw e; // make sure other errors are rethrown
+  }
+
+  // Both onboarding flows save completedOnboarding through this handler, so gate on the transition
+  // to report the milestone once even if the flag is saved again later.
+  if (input.completedOnboarding && !user.completedOnboarding) {
+    await trackPendoEvent({
+      event: "Onboarding completed",
+      visitorId: user.id,
+      accountId: user.organizationId,
+      properties: {
+        identity_provider: updatedUser.identityProvider,
+        locale: updatedUser.locale,
+        has_avatar: !!updatedUser.avatarUrl,
+      },
+    });
   }
 
   if (user.timeZone !== data.timeZone && updatedUser.schedules.length > 0) {

@@ -23,6 +23,7 @@ import { parseRecurringEvent } from "@calcom/lib/isRecurringEvent";
 import { getTranslation } from "@calcom/i18n/server";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import type { TraceContext } from "@calcom/lib/tracing";
 import { prisma } from "@calcom/prisma";
@@ -190,6 +191,18 @@ export const confirmHandler = async ({ ctx, input }: ConfirmOptions) => {
       },
       data: {
         status: BookingStatus.ACCEPTED,
+      },
+    });
+
+    await trackPendoEvent({
+      event: "Booking confirmed",
+      visitorId: ctx.user.id,
+      properties: {
+        booking_id: bookingId,
+        event_type_id: booking.eventTypeId,
+        is_team_event: !!booking.eventType?.teamId,
+        is_recurring: !!recurringEventId,
+        awaiting_payment: true,
       },
     });
 
@@ -372,6 +385,19 @@ export const confirmHandler = async ({ ctx, input }: ConfirmOptions) => {
       platformClientParams,
       traceContext,
     });
+
+    await trackPendoEvent({
+      event: "Booking confirmed",
+      visitorId: ctx.user.id,
+      accountId: evt.organizationId,
+      properties: {
+        booking_id: bookingId,
+        event_type_id: booking.eventTypeId,
+        is_team_event: !!booking.eventType?.teamId,
+        is_recurring: !!recurringEventId,
+        awaiting_payment: false,
+      },
+    });
   } else {
     evt.rejectionReason = rejectionReason;
     let rejectedBookings: {
@@ -437,6 +463,20 @@ export const confirmHandler = async ({ ctx, input }: ConfirmOptions) => {
       ];
     }
 
+    await trackPendoEvent({
+      event: "Booking rejected",
+      visitorId: ctx.user.id,
+      accountId: evt.organizationId,
+      properties: {
+        booking_id: bookingId,
+        event_type_id: booking.eventTypeId,
+        is_team_event: !!booking.eventType?.teamId,
+        is_recurring: !!recurringEventId,
+        rejected_booking_count: rejectedBookings.length,
+        has_reason: !!rejectionReason,
+      },
+    });
+
     if (emailsEnabled) {
       await sendDeclinedEmailsAndSMS(evt, booking.eventType?.metadata as EventTypeMetadata);
     }
@@ -477,7 +517,6 @@ export const confirmHandler = async ({ ctx, input }: ConfirmOptions) => {
       smsReminderNumber: booking.smsReminderNumber || undefined,
     };
     await handleWebhookTrigger({ subscriberOptions, eventTrigger, webhookData, traceContext });
-
   }
 
   const message = confirmed ? "Booking confirmed" : "Booking rejected";

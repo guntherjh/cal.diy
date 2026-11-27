@@ -1,6 +1,7 @@
 import dayjs from "@calcom/dayjs";
 import { isPrismaObjOrUndefined } from "@calcom/lib/isPrismaObj";
 import { withReporting } from "@calcom/lib/sentryWrapper";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
 import type { CreationSource } from "@calcom/prisma/enums";
@@ -83,12 +84,32 @@ const _createBooking = async ({
     tracking,
   });
 
-  return await saveBooking(
+  const booking = await saveBooking(
     bookingAndAssociatedData,
     originalRescheduledBooking,
     eventType.paymentAppData,
     eventType.organizerUser
   );
+
+  // Bookers are usually anonymous, so the booking is attributed to the host who received it.
+  await trackPendoEvent({
+    event: "Booking created",
+    visitorId: eventType.organizerUser.id,
+    accountId: evt.organizationId,
+    properties: {
+      booking_id: booking.id,
+      event_type_id: eventType.id || null,
+      booking_status: booking.status,
+      is_reschedule: !!originalRescheduledBooking,
+      is_recurring: !!booking.recurringEventId,
+      is_team_event: !!evt.team,
+      is_paid_event: typeof eventType.paymentAppData.price === "number" && eventType.paymentAppData.price > 0,
+      attendee_count: booking.attendees.length,
+      creation_source: creationSource ?? null,
+    },
+  });
+
+  return booking;
 };
 
 export const createBooking = withReporting(_createBooking, "createBooking");

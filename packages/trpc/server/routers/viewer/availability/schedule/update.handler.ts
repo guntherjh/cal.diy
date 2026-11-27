@@ -1,4 +1,5 @@
 import { updateSchedule } from "@calcom/features/schedules/services/ScheduleService";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
 
@@ -14,9 +15,22 @@ type UpdateOptions = {
 
 export const updateHandler = async ({ input, ctx }: UpdateOptions) => {
   const { user } = ctx;
-  return updateSchedule({
+  const result = await updateSchedule({
     input,
     user,
     prisma,
   });
+
+  await trackPendoEvent({
+    event: "Schedule updated",
+    visitorId: user.id,
+    properties: {
+      schedule_id: input.scheduleId,
+      is_default: result.isDefault,
+      set_default_only: !input.name,
+      date_override_count: input.dateOverrides?.length ?? 0,
+    },
+  });
+
+  return result;
 };
