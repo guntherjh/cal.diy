@@ -1361,7 +1361,7 @@ const EmbedTypeCodeAndPreviewDialogContent = ({
             </div>
             <DialogFooter className="mt-10 flex-row-reverse gap-x-2" showDivider>
               <DialogClose />
-              <Button
+              <Button data-novus-id="event-types-copy-embed-code-for-an-event-type"
                 type="submit"
                 onClick={() => {
                   if (embedType === "email") {

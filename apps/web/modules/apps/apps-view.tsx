@@ -38,7 +38,7 @@ function AppsSearch({
 }) {
   const { t } = useLocale();
   return (
-    <TextField
+    <TextField data-novus-id="app-store-search-apps"
       addOnLeading={<SearchIcon className="text-subtle h-4 w-4" />}
       addOnClassname="!border-muted"
       containerClassName={classNames("focus:ring-offset-0! m-1", className)}

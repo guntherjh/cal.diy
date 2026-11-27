@@ -94,7 +94,7 @@ export function CreateEventTypeDialog({ profileOptions }: { profileOptions: Prof
     return (
       <DialogFooter showDivider>
         <DialogClose />
-        <Button type="submit" loading={isPending}>
+        <Button data-novus-id="event-types-create-an-event-type" type="submit" loading={isPending}>
           {t("continue")}
         </Button>
       </DialogFooter>

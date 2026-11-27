@@ -253,7 +253,7 @@ export default function ApiKeyDialogForm({
             <Button type="button" color="secondary" onClick={handleClose} tabIndex={-1}>
               {t("cancel")}
             </Button>
-            <Button type="submit" loading={form.formState.isSubmitting}>
+            <Button data-novus-id="api-keys-create-an-api-key" type="submit" loading={form.formState.isSubmitting}>
               {apiKeyDetails ? t("save") : t("create")}
             </Button>
           </DialogFooter>

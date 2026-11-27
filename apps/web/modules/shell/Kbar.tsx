@@ -368,7 +368,7 @@ const KBarTrigger = (): JSX.Element | null => {
 
   return (
     <Tooltip side="right" content={getTooltipContent()}>
-      <button
+      <button data-novus-id="global-open-the-command-palette"
         color="minimal"
         onClick={query.toggle}
         className="todesktop:hover:!bg-transparent group flex rounded-md px-3 py-2 font-medium text-default text-sm transition hover:bg-subtle lg:px-2 lg:hover:bg-emphasis lg:hover:text-emphasis">
