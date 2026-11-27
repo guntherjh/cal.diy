@@ -26,6 +26,7 @@ import { isPrismaObjOrUndefined } from "@calcom/lib/isPrismaObj";
 import { parseRecurringEvent } from "@calcom/lib/isRecurringEvent";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import { getTranslation } from "@calcom/i18n/server";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 // TODO: Prisma import would be used from DI in a followup PR when we remove `handler` export
@@ -80,17 +81,13 @@ type Dependencies = {
 
 async function handler(input: CancelBookingInput, dependencies?: Dependencies) {
   const prismaClient = prisma;
-  const {
-    userRepository,
-    bookingRepository,
-    bookingReferenceRepository,
-    attendeeRepository,
-  } = dependencies || {
-    userRepository: new UserRepository(prismaClient),
-    bookingRepository: new BookingRepository(prismaClient),
-    bookingReferenceRepository: new BookingReferenceRepository({ prismaClient }),
-    attendeeRepository: new PrismaBookingAttendeeRepository(prismaClient),
-  };
+  const { userRepository, bookingRepository, bookingReferenceRepository, attendeeRepository } =
+    dependencies || {
+      userRepository: new UserRepository(prismaClient),
+      bookingRepository: new BookingRepository(prismaClient),
+      bookingReferenceRepository: new BookingReferenceRepository({ prismaClient }),
+      attendeeRepository: new PrismaBookingAttendeeRepository(prismaClient),
+    };
   const body = input.bookingData;
   const {
     id,
@@ -103,12 +100,12 @@ async function handler(input: CancelBookingInput, dependencies?: Dependencies) {
     skipCancellationReasonValidation = false,
     skipCalendarSyncTaskCancellation = false,
   } = bookingCancelInput.parse(body);
-  let bookingToDelete: BookingToDelete
+  let bookingToDelete: BookingToDelete;
   try {
     bookingToDelete = await getBookingToDelete(id, uid);
   } catch (error) {
-    if (isPrismaError(error) && error.code === "P2025") // Record not found
-    {
+    if (isPrismaError(error) && error.code === "P2025") {
+      // Record not found
       throw new HttpError({
         statusCode: 404,
         message: "Booking not found.",
@@ -124,7 +121,6 @@ async function handler(input: CancelBookingInput, dependencies?: Dependencies) {
     platformRescheduleUrl,
     arePlatformEmailsEnabled,
   } = input;
-
 
   /**
    * Important: We prevent cancelling an already cancelled booking.
@@ -158,7 +154,12 @@ async function handler(input: CancelBookingInput, dependencies?: Dependencies) {
     isCancellationUserHost
   );
 
-  if (!platformClientId && !cancellationReason?.trim() && isReasonRequired && !skipCancellationReasonValidation) {
+  if (
+    !platformClientId &&
+    !cancellationReason?.trim() &&
+    isReasonRequired &&
+    !skipCancellationReasonValidation
+  ) {
     throw new HttpError({
       statusCode: 400,
       message: "Cancellation reason is required",
@@ -426,6 +427,22 @@ async function handler(input: CancelBookingInput, dependencies?: Dependencies) {
       }
     }
   }
+
+  // Attendees can cancel without signing in, so fall back to the host who owns the booking.
+  await trackPendoEvent({
+    event: "Booking cancelled",
+    visitorId: userId ?? bookingToDelete.userId,
+    accountId: evt.organizationId,
+    properties: {
+      booking_id: bookingToDelete.id,
+      event_type_id: bookingToDelete.eventTypeId,
+      cancelled_by_host: isCancellationUserHost,
+      cancelled_booking_count: updatedBookings.length,
+      is_recurring: !!bookingToDelete.recurringEventId,
+      has_reason: !!cancellationReason,
+      is_platform_booking: !!platformClientId,
+    },
+  });
 
   /** TODO: Remove this without breaking functionality */
   if (bookingToDelete.location === DailyLocationType) {

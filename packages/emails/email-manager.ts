@@ -9,6 +9,7 @@ import { formatCalEvent } from "@calcom/lib/formatCalendarEvent";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import { withReporting } from "@calcom/lib/sentryWrapper";
+import { trackPendoEvent } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import type { EventTypeMetaDataSchema } from "@calcom/prisma/zod-utils";
 import type { CalendarEvent, Person } from "@calcom/types/Calendar";
@@ -123,6 +124,23 @@ const _sendScheduledEmailsAndSMS = async (
   }
 
   await Promise.all(emailsToSend);
+
+  if (emailsToSend.length > 0) {
+    await trackPendoEvent({
+      event: "Booking confirmation email sent",
+      visitorId: calEvent.organizer.id,
+      accountId: calEvent.organizationId,
+      properties: {
+        booking_id: calEvent.bookingId ?? null,
+        event_type_id: calEvent.eventTypeId ?? null,
+        email_count: emailsToSend.length,
+        host_email_sent: !hostEmailDisabled && !eventTypeDisableHostEmail(eventTypeMetadata),
+        attendee_count: formattedCalEvent.attendees.length,
+        is_team_event: !!formattedCalEvent.team,
+      },
+    });
+  }
+
   const successfullyScheduledSms = new EventSuccessfullyScheduledSMS(calEvent);
   await successfullyScheduledSms.sendSMSToAttendees();
 };
