@@ -7,6 +7,7 @@ import Document, { Head, Html, Main, NextScript } from "next/document";
 import { IS_PRODUCTION } from "@calcom/lib/constants";
 
 import { applyTheme, applyToDesktopClass } from "./../lib/pages/document/_applyThemeForDocument";
+import { PENDO_INSTALL_SNIPPET } from "./../lib/pendo/installSnippet";
 
 type Props = Record<string, unknown> & DocumentProps & { newLocale: string };
 
@@ -64,6 +65,11 @@ class MyDocument extends Document<Props> {
               (${applyToDesktopClass.toString()})();
             `,
             }}
+          />
+          <script
+            id="pendo-install"
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: Static Novus by Pendo install snippet
+            dangerouslySetInnerHTML={{ __html: PENDO_INSTALL_SNIPPET }}
           />
           <link rel="apple-touch-icon" sizes="180x180" href="/api/logo?type=apple-touch-icon" />
           <link rel="icon" type="image/png" sizes="32x32" href="/api/logo?type=favicon-32" />
