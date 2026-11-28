@@ -1,13 +1,13 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import type { Session } from "next-auth";
-
 import { throwIfNotHaveAdminAccessToTeam } from "@calcom/app-store/_utils/throwIfNotHaveAdminAccessToTeam";
 import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
 import { deriveAppDictKeyFromType } from "@calcom/lib/deriveAppDictKeyFromType";
 import { HttpError } from "@calcom/lib/http-error";
 import { getServerErrorFromUnknown } from "@calcom/lib/server/getServerErrorFromUnknown";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import type { AppDeclarativeHandler, AppHandler } from "@calcom/types/AppHandler";
+import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 
 const defaultIntegrationAddHandler = async ({
   slug,
@@ -42,6 +42,17 @@ const defaultIntegrationAddHandler = async ({
   await throwIfNotHaveAdminAccessToTeam({ teamId: teamId ?? null, userId: user.id });
 
   await createCredential({ user: user, appType, slug, teamId });
+
+  pendoTrack({
+    event: "App installed",
+    visitorId: user.id,
+    accountId: user.org?.id,
+    properties: {
+      app_slug: slug,
+      app_type: appType,
+      is_team_install: Boolean(teamId),
+    },
+  });
 };
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {

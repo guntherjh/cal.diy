@@ -7,6 +7,7 @@ import getIP from "@calcom/lib/getIP";
 import { checkCfTurnstileToken } from "@calcom/lib/server/checkCfTurnstileToken";
 import { defaultResponder } from "@calcom/lib/server/defaultResponder";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import type { NextApiRequest } from "next";
 
 // @TODO: Didn't look at the contents of this function in order to not break old booking page.
@@ -57,6 +58,21 @@ async function handler(req: NextApiRequest & RequestMeta) {
     },
     creationSource: "WEBAPP",
   });
+
+  const [firstBooking] = createdBookings;
+  if (firstBooking && !firstBooking.isDryRun) {
+    pendoTrack({
+      event: "Recurring booking series created",
+      // Public bookers are often anonymous, so fall back to the host to keep the event tied to an account.
+      visitorId: session?.user?.id ?? firstBooking.userId,
+      properties: {
+        booking_count: createdBookings.length,
+        event_type_id: firstBooking.eventTypeId ?? null,
+        booking_status: firstBooking.status ?? null,
+        is_signed_in_booker: Boolean(session?.user?.id),
+      },
+    });
+  }
 
   return createdBookings;
 }

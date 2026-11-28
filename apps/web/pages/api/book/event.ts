@@ -9,6 +9,7 @@ import getIP from "@calcom/lib/getIP";
 import { checkCfTurnstileToken } from "@calcom/lib/server/checkCfTurnstileToken";
 import { defaultResponder } from "@calcom/lib/server/defaultResponder";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import type { TraceContext } from "@calcom/lib/tracing";
 import { prisma } from "@calcom/prisma";
 import { CreationSource } from "@calcom/prisma/enums";
@@ -56,6 +57,23 @@ async function handler(req: NextApiRequest & { userId?: number; traceContext: Tr
       traceContext: req.traceContext,
     },
   });
+
+  // Dry runs and decoy bookings aren't stored, so they don't count as created bookings.
+  if (!booking.isDryRun && !booking.isShortCircuitedBooking) {
+    pendoTrack({
+      event: "Booking created",
+      // Public bookers are often anonymous, so fall back to the host to keep the event tied to an account.
+      visitorId: session?.user?.id ?? booking.userId,
+      properties: {
+        booking_id: booking.id,
+        event_type_id: booking.eventTypeId ?? null,
+        booking_status: booking.status,
+        is_reschedule: Boolean(booking.fromReschedule),
+        requires_payment: Boolean(booking.paymentUid),
+        is_signed_in_booker: Boolean(session?.user?.id),
+      },
+    });
+  }
 
   return booking;
 }

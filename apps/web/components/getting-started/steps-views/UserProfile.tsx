@@ -1,22 +1,25 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
-import { useForm } from "react-hook-form";
-import posthog from "posthog-js";
-
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { md } from "@calcom/lib/markdownIt";
 import turndown from "@calcom/lib/turndownService";
 import { localStorage } from "@calcom/lib/webstorage";
-import { trpc } from "@calcom/trpc/react";
 import type { RouterOutputs } from "@calcom/trpc/react";
+import { trpc } from "@calcom/trpc/react";
 import { UserAvatar } from "@calcom/ui/components/avatar";
 import { Button } from "@calcom/ui/components/button";
 import { Editor } from "@calcom/ui/components/editor";
 import { Label } from "@calcom/ui/components/form";
 import { ImageUploader } from "@calcom/ui/components/image-uploader";
 import { showToast } from "@calcom/ui/components/toast";
+import { trackPendoEvent } from "@lib/pendoTrack";
+import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
+import { useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+
+// Module-level so remounting the onboarding step can't report the same milestone twice in a session.
+const trackedOnboardingUserIds = new Set<number>();
 
 type FormData = {
   bio: string;
@@ -67,6 +70,15 @@ const UserProfile = ({ user }: UserProfileProps) => {
       }
 
       posthog.capture("onboarding_completed");
+
+      if (user && !user.completedOnboarding && !trackedOnboardingUserIds.has(user.id)) {
+        trackedOnboardingUserIds.add(user.id);
+        trackPendoEvent("Onboarding completed", {
+          created_default_event_types: eventTypes?.length === 0,
+          has_bio: Boolean(getValues("bio")),
+          has_avatar: Boolean(imageSrc),
+        });
+      }
 
       await utils.viewer.me.get.refetch();
       const redirectUrl = localStorage.getItem("onBoardingRedirect");

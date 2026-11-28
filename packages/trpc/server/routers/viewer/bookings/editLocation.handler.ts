@@ -7,11 +7,12 @@ import { BookingRepository } from "@calcom/features/bookings/repositories/Bookin
 import { CredentialRepository } from "@calcom/features/credentials/repositories/CredentialRepository";
 import { CredentialAccessService } from "@calcom/features/credentials/services/CredentialAccessService";
 import { UserRepository } from "@calcom/features/users/repositories/UserRepository";
+import { getTranslation } from "@calcom/i18n/server";
 import { buildCalEventFromBooking } from "@calcom/lib/buildCalEventFromBooking";
 import { getVideoCallUrlFromCalEvent } from "@calcom/lib/CalEventParser";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
-import { getTranslation } from "@calcom/i18n/server";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
 import type { Booking, BookingReference } from "@calcom/prisma/client";
 import type { EventTypeMetadata, userMetadata } from "@calcom/prisma/zod-utils";
@@ -314,6 +315,20 @@ export async function editLocationHandler({ ctx, input, actionSource }: EditLoca
   } catch (error) {
     logger.error("Error sending LocationChangeEmails", safeStringify(error));
   }
+
+  pendoTrack({
+    event: "Booking location updated",
+    visitorId: loggedInUser.id,
+    accountId: loggedInUser.organizationId,
+    properties: {
+      booking_id: booking.id,
+      // Only the app type is sent because custom locations can hold addresses or phone numbers.
+      location_type: newLocation.startsWith("integrations:") ? newLocation : "custom",
+      location_changed: oldLocation !== updatedLocation,
+      synced_app_count: updatedResult.results.length,
+      action_source: actionSource,
+    },
+  });
 
   return { message: "Location updated" };
 }

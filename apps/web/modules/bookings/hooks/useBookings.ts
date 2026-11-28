@@ -17,6 +17,7 @@ import { getFullName } from "@calcom/features/form-builder/utils";
 import { ErrorCode } from "@calcom/lib/errorCodes";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { BookingStatus } from "@calcom/prisma/enums";
+import { trackPendoEvent } from "@lib/pendoTrack";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
@@ -97,6 +98,27 @@ const getRescheduleBookingSuccessfulEventPayload = getBookingSuccessfulEventPayl
 export const getDryRunBookingSuccessfulEventPayload = getBaseBookingEventPayload;
 
 export const getDryRunRescheduleBookingSuccessfulEventPayload = getDryRunBookingSuccessfulEventPayload;
+
+// Module-level so a remount of the booker can't report the same reschedule twice.
+const trackedRescheduledBookingUids = new Set<string>();
+
+const trackBookingRescheduled = (booking: {
+  uid?: string;
+  eventTypeId?: number | null;
+  status?: BookingStatus;
+  isRecurring: boolean;
+  bookingCount: number;
+}) => {
+  if (!booking.uid || trackedRescheduledBookingUids.has(booking.uid)) return;
+  trackedRescheduledBookingUids.add(booking.uid);
+  trackPendoEvent("Booking rescheduled", {
+    booking_uid: booking.uid,
+    event_type_id: booking.eventTypeId ?? null,
+    booking_status: booking.status ?? null,
+    is_recurring: booking.isRecurring,
+    booking_count: booking.bookingCount,
+  });
+};
 export interface IUseBookingLoadingStates {
   creatingBooking: boolean;
   creatingRecurringBooking: boolean;
@@ -213,6 +235,13 @@ export const useBookings = ({ event, hashedLink, bookingForm, metadata, isBookin
             isRecurring: false,
           })
         );
+        trackBookingRescheduled({
+          uid: booking.uid,
+          eventTypeId: booking.eventTypeId,
+          status: booking.status,
+          isRecurring: false,
+          bookingCount: 1,
+        });
       } else {
         sdkActionManager?.fire("bookingSuccessful", {
           booking: booking,
@@ -367,6 +396,13 @@ export const useBookings = ({ event, hashedLink, bookingForm, metadata, isBookin
             startTime: booking.startTime,
             endTime: booking.endTime,
           })),
+        });
+        trackBookingRescheduled({
+          uid: booking.uid,
+          eventTypeId: booking.eventTypeId,
+          status: booking.status,
+          isRecurring: true,
+          bookingCount: bookings.length,
         });
       } else {
         sdkActionManager?.fire("bookingSuccessfulV2", {
