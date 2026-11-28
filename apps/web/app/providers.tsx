@@ -11,6 +11,7 @@ import { NotificationSoundHandler } from "@calcom/web/components/notification-so
 import useIsBookingPage from "@lib/hooks/useIsBookingPage";
 
 import { GeoProvider } from "./GeoContext";
+import { PendoIdentify } from "./PendoIdentify";
 
 type ProvidersProps = {
   isEmbed: boolean;
@@ -24,6 +25,7 @@ export function Providers({ isEmbed, children, country }: ProvidersProps) {
   return (
     <GeoProvider country={country}>
       <SessionProvider>
+        <PendoIdentify />
         <TrpcProvider>
           <ToastProvider position="bottom-center">
             {!isEmbed && !isBookingPage && <NotificationSoundHandler />}
