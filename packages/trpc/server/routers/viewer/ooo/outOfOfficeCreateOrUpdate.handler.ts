@@ -1,5 +1,3 @@
-import { v4 as uuidv4 } from "uuid";
-
 import { selectOOOEntries } from "@calcom/app-store/zapier/api/subscriptions/listOOOEntries";
 import dayjs from "@calcom/dayjs";
 import { sendBookingRedirectNotification } from "@calcom/emails/workflow-email-service";
@@ -8,14 +6,14 @@ import getWebhooks from "@calcom/features/webhooks/lib/getWebhooks";
 import type { OOOEntryPayloadType } from "@calcom/features/webhooks/lib/sendPayload";
 import sendPayload from "@calcom/features/webhooks/lib/sendPayload";
 import { getTranslation } from "@calcom/i18n/server";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import prisma from "@calcom/prisma";
 import { WebhookTriggerEvents } from "@calcom/prisma/enums";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
-
 import { TRPCError } from "@trpc/server";
-
+import { v4 as uuidv4 } from "uuid";
 import { isAdminForUser } from "./outOfOffice.utils";
-import { type TOutOfOfficeInputSchema } from "./outOfOfficeCreateOrUpdate.schema";
+import type { TOutOfOfficeInputSchema } from "./outOfOfficeCreateOrUpdate.schema";
 
 type TBookingRedirect = {
   ctx: {
@@ -193,6 +191,19 @@ export const outOfOfficeCreateOrUpdate = async ({ ctx, input }: TBookingRedirect
       userId: oooUserId,
       reasonId: input.reasonId,
       toUserId: toUserId ? toUserId : null,
+    },
+  });
+
+  pendoTrack({
+    event: "Out-of-office entry saved",
+    visitorId: ctx.user.id,
+    accountId: ctx.user.organizationId,
+    properties: {
+      is_update: Boolean(input.uuid),
+      has_redirect: Boolean(toUserId),
+      has_reason: Boolean(input.reasonId),
+      saved_for_other_user: oooUserId !== ctx.user.id,
+      duration_days: endTimeUtc.diff(startTimeUtc, "day") + 1,
     },
   });
   // Explicit type to avoid Prisma.OutOfOfficeEntryGetPayload conditional types leaking into .d.ts files

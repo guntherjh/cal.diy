@@ -1,8 +1,7 @@
 import { HostRepository } from "@calcom/features/host/repositories/HostRepository";
+import { pendoTrack } from "@calcom/lib/server/pendoTrack";
 import { prisma } from "@calcom/prisma";
-
 import { TRPCError } from "@trpc/server";
-
 import type { TrpcSessionUser } from "../../../../types";
 import type { TDeleteInputSchema } from "./delete.schema";
 
@@ -64,6 +63,16 @@ export const deleteHandler = async ({ input, ctx }: DeleteOptions) => {
   await prisma.schedule.delete({
     where: {
       id: input.scheduleId,
+    },
+  });
+
+  pendoTrack({
+    event: "Schedule deleted",
+    visitorId: user.id,
+    accountId: user.organizationId,
+    properties: {
+      schedule_id: input.scheduleId,
+      was_default: user.defaultScheduleId === input.scheduleId,
     },
   });
 };
