@@ -432,7 +432,7 @@ const ProfileView = ({ user }: Props) => {
           type="creation"
           Icon="triangle-alert">
           <DialogFooter>
-            <Button
+            <Button data-novus-id="profile-disconnect-a-linked-login-account"
               color="primary"
               onClick={() => {
                 unlinkConnectedAccountMutation.mutate();

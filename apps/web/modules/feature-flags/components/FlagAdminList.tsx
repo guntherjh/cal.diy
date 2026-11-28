@@ -85,7 +85,7 @@ const FlagToggle = (props: { flag: Flag }) => {
     },
   });
   return (
-    <Switch
+    <Switch data-novus-id="feature-flags-turn-a-feature-flag-on-or-off"
       defaultChecked={enabled}
       onCheckedChange={(checked) => {
         mutation.mutate({ slug, enabled: checked });

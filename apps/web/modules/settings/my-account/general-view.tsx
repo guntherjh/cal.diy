@@ -206,7 +206,7 @@ const GeneralView = ({ user, travelSchedules }: GeneralViewProps) => {
                       />
                     </div>
                     {!watchedTzSchedules.length && (
-                      <Button
+                      <Button data-novus-id="general-schedule-a-time-zone-change"
                         className="w-full sm:w-1/2"
                         color="secondary"
                         StartIcon="calendar"

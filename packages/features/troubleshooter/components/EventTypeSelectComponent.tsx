@@ -86,7 +86,7 @@ export function EventTypeSelectComponent({
   }, [eventTypes, selectedEventType, setSelectedEventType]);
 
   return (
-    <SelectField
+    <SelectField data-novus-id="availability-troubleshooter-troubleshoot-availability-for-an-event-type"
       label={t("event_type")}
       options={options}
       isDisabled={isPending || options.length === 0}

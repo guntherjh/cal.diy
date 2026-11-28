@@ -128,7 +128,7 @@ export const ReportBookingDialog = (props: IReportBookingDialog) => {
               disabled={isPending}>
               {t("cancel")}
             </Button>
-            <Button type="submit" color="primary" disabled={isPending} loading={isPending}>
+            <Button data-novus-id="bookings-report-a-booking" type="submit" color="primary" disabled={isPending} loading={isPending}>
               {t("submit_report")}
             </Button>
           </DialogFooter>

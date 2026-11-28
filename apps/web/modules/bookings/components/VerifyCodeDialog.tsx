@@ -121,7 +121,7 @@ export const VerifyCodeDialog = ({
             )}
             <DialogFooter noSticky>
               <DialogClose onClick={() => setIsOpenDialog(false)} />
-              <Button type="submit" onClick={verifyCode} loading={isPending}>
+              <Button data-novus-id="booking-page-verify-email-with-a-code-before-booking" type="submit" onClick={verifyCode} loading={isPending}>
                 {t("submit")}
               </Button>
             </DialogFooter>
