@@ -7,6 +7,7 @@ import { ToastProvider } from "@coss/ui/components/toast";
 
 import { WebPushProvider } from "@calcom/web/modules/notifications/components/WebPushContext";
 import { NotificationSoundHandler } from "@calcom/web/components/notification-sound-handler";
+import { PendoSessionTracker } from "@calcom/web/components/pendo/PendoSessionTracker";
 
 import useIsBookingPage from "@lib/hooks/useIsBookingPage";
 
@@ -24,6 +25,7 @@ export function Providers({ isEmbed, children, country }: ProvidersProps) {
   return (
     <GeoProvider country={country}>
       <SessionProvider>
+        <PendoSessionTracker />
         <TrpcProvider>
           <ToastProvider position="bottom-center">
             {!isEmbed && !isBookingPage && <NotificationSoundHandler />}

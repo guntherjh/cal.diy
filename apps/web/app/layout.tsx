@@ -2,6 +2,7 @@ import { getLocale } from "@calcom/features/auth/lib/getLocale";
 import { loadTranslations } from "@calcom/i18n/server";
 import { IconSprites } from "@calcom/ui/components/icon";
 import { buildLegacyRequest } from "@lib/buildLegacyCtx";
+import { PENDO_INSTALL_SCRIPT } from "@lib/pendo/pendoInstallScript";
 import { dir } from "i18next";
 import { Inter } from "next/font/google";
 import localFont from "next/font/local";
@@ -114,6 +115,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
       data-nextjs-router="app">
       <head nonce={nonce}>
+        <script
+          id="pendo-install"
+          nonce={nonce}
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: The Pendo install snippet must run inline before the app hydrates
+          dangerouslySetInnerHTML={{ __html: PENDO_INSTALL_SCRIPT }}
+        />
         <style>{`
           :root {
             --font-sans: ${interFont.style.fontFamily.replace(/\'/g, "")}, system-ui;
@@ -151,13 +158,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <IconSprites />
         <SpeculationRules
           // URLs In Navigation
-          prerenderPathsOnHover={[
-            "/event-types",
-            "/availability",
-            "/bookings/upcoming",
-            "/teams",
-            "/apps",
-          ]}
+          prerenderPathsOnHover={["/event-types", "/availability", "/bookings/upcoming", "/teams", "/apps"]}
         />
 
         <Providers isEmbed={isEmbed} nonce={nonce} country={country}>
