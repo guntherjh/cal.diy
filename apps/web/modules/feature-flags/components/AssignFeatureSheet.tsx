@@ -122,7 +122,7 @@ export function AssignFeatureSheet({ flag, open, onOpenChange }: AssignFeatureSh
             <>
               <div className="stack-y-2">
                 {teams.map((team) => (
-                  <button
+                  <button data-novus-id="feature-flags-assign-a-feature-flag-to-a-team"
                     key={team.id}
                     type="button"
                     onClick={() => handleToggleTeam(team.id, team.hasFeature)}

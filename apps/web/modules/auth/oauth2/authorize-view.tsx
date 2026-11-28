@@ -242,7 +242,7 @@ export function Authorize() {
         </div>
         <div className="-mx-9 mb-4 border-b border-subtle border-" />
         <div className="flex justify-end">
-          <Button
+          <Button data-novus-id="authorize-app-oauth-deny-a-third-party-app"
             className="mr-2"
             color="minimal"
             onClick={() => {

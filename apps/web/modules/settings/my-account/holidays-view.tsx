@@ -87,7 +87,7 @@ const CountrySelector = memo(function CountrySelector({
   }
 
   return (
-    <Select
+    <Select data-novus-id="holidays-choose-a-holiday-country"
       className="w-auto min-w-[180px]"
       value={selectedOption}
       onChange={(option) => onChange(option?.value || "")}
@@ -123,7 +123,7 @@ const HolidayListItem = memo(function HolidayListItem({
           )}
         </div>
       </div>
-      <Switch
+      <Switch data-novus-id="holidays-turn-a-holiday-on-or-off"
         checked={holiday.enabled}
         onCheckedChange={(checked) => onToggle(holiday.id, checked)}
         disabled={isToggling}

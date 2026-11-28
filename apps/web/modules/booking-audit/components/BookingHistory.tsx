@@ -109,7 +109,7 @@ function BookingLogsFilters({
   return (
     <div className="flex flex-wrap gap-2 items-start">
       <div className="flex-1 min-w-[200px]">
-        <FilterSearchField
+        <FilterSearchField data-novus-id="booking-history-search-booking-history"
           size="sm"
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}

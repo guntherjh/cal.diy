@@ -127,7 +127,7 @@ const AppConnectionItem = (props: IAppConnectionItem) => {
         />
         {/* It is possible that app is already installed here during onboarding due to Delegation Credential enabled at organization level. We allow the user to set it as default */}
         {installed && !isDefault && (
-          <Button
+          <Button data-novus-id="getting-started-wizard-set-a-default-video-app-in-onboarding"
             color="secondary"
             className="ml-2"
             type="button"

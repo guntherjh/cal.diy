@@ -135,7 +135,7 @@ export default function ForgotPassword(props: PageProps) {
               required
             />
             <div className="stack-y-2">
-              <Button
+              <Button data-novus-id="forgot-password-request-a-password-reset"
                 className="w-full justify-center"
                 type="submit"
                 color="secondary"

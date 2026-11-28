@@ -80,7 +80,7 @@ const CalendarSwitch = (props: ICalendarSwitchProps) => {
   return (
     <div className={classNames("my-2 flex flex-row items-center")}>
       <div className="flex pl-2">
-        <Switch
+        <Switch data-novus-id="calendars-check-a-calendar-for-conflicts"
           id={externalId}
           checked={checkedInternal}
           disabled={disabled || mutation.isPending}

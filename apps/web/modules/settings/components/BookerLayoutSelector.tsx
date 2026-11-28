@@ -88,7 +88,7 @@ export const BookerLayoutSelector = ({
             />
             {!isOuterBorder && (
               <SectionBottomActions align="end">
-                <Button loading={isLoading} type="submit" disabled={isDisabled} color="primary">
+                <Button data-novus-id="appearance-set-the-default-booking-layout" loading={isLoading} type="submit" disabled={isDisabled} color="primary">
                   {t("update")}
                 </Button>
               </SectionBottomActions>

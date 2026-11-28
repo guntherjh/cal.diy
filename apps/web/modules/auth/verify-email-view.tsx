@@ -84,7 +84,7 @@ function VerifyEmailPage() {
                   ))}
                 </div>
                 <div className="flex flex-col items-center gap-2">
-                  <Button
+                  <Button data-novus-id="verify-email-resend-the-verification-email"
                     color="minimal"
                     loading={mutation.isPending}
                     onClick={() => {
